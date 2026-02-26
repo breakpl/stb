@@ -10,6 +10,12 @@
 #include <wx/graphics.h>
 #include <wx/rawbmp.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <string>
+#include <algorithm>
+#endif
+
 #ifdef __WXOSX__
 #include <wx/osx/private.h>
 #import <Cocoa/Cocoa.h>
@@ -197,35 +203,92 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
         }
     }
 #else
-    // Fallback for other platforms
-    wxBitmap bitmap(ICON_WIDTH, ICON_HEIGHT, 32);
-    wxMemoryDC memDC;
-    memDC.SelectObject(bitmap);
-    memDC.SetBackground(*wxTRANSPARENT_BRUSH);
-    memDC.Clear();
-    
-    wxGraphicsContext* gc = wxGraphicsContext::Create(memDC);
-    if (gc) {
-        wxFont font(wxFontInfo(ICON_FONT_SIZE_MAC).FaceName("SFMono").Bold());
-        gc->SetFont(font, *wxBLACK);
-        gc->SetAntialiasMode(wxANTIALIAS_DEFAULT);
-        
-        double textWidth, textHeight;
-        gc->GetTextExtent(text, &textWidth, &textHeight);
-        
-        double x = (ICON_WIDTH - textWidth) / 2.0;
-        double y = (ICON_HEIGHT - textHeight) / 2.0 + (ICON_HEIGHT * 0.05);
-        
-        gc->DrawText(text, x, y);
-        delete gc;
+    // Windows: render ClearType text on an opaque background that matches
+    // the taskbar colour — exactly how the system clock is drawn.
+    // No alpha tricks, no supersampling: just crisp native GDI text.
+    int iconSize = ::GetSystemMetrics(SM_CXSMICON);
+    if (iconSize <= 0) iconSize = 16;
+
+    // Detect Windows light/dark theme
+    bool isLightTheme = false;
+    {
+        HKEY hKey;
+        if (RegOpenKeyExW(HKEY_CURRENT_USER,
+                L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+            DWORD value = 0, size = sizeof(DWORD);
+            if (RegQueryValueExW(hKey, L"SystemUsesLightTheme", NULL, NULL,
+                    (LPBYTE)&value, &size) == ERROR_SUCCESS)
+                isLightTheme = (value == 1);
+            RegCloseKey(hKey);
+        }
     }
-    
-    memDC.SelectObject(wxNullBitmap);
-    
+    // Match the default taskbar background colour
+    COLORREF bgColor   = isLightTheme ? RGB(230, 230, 230) : RGB(32, 32, 32);
+    COLORREF textColor = isLightTheme ? RGB(32,  32,  32)  : RGB(255, 255, 255);
+
+    BITMAPINFO bmi = {};
+    bmi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth       = iconSize;
+    bmi.bmiHeader.biHeight      = -iconSize; // top-down
+    bmi.bmiHeader.biPlanes      = 1;
+    bmi.bmiHeader.biBitCount    = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    DWORD* pixels = nullptr;
+    HDC screenDC = ::GetDC(NULL);
+    HBITMAP hBmp = ::CreateDIBSection(screenDC, &bmi, DIB_RGB_COLORS, (void**)&pixels, NULL, 0);
+    HDC memDC = ::CreateCompatibleDC(screenDC);
+    HBITMAP oldBmp = (HBITMAP)::SelectObject(memDC, hBmp);
+
+    // Fill with taskbar background
+    HBRUSH hBgBrush = ::CreateSolidBrush(bgColor);
+    RECT fillRc = { 0, 0, iconSize, iconSize };
+    ::FillRect(memDC, &fillRc, hBgBrush);
+    ::DeleteObject(hBgBrush);
+
+    // Draw text with ClearType — same quality as the system clock
+    int fh = -MulDiv((text.Length() <= 3) ? 8 : 6, ::GetDeviceCaps(screenDC, LOGPIXELSY), 72);
+    HFONT hFont = ::CreateFontW(fh, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Segoe UI");
+    HFONT oldFont = (HFONT)::SelectObject(memDC, hFont);
+    ::SetBkMode(memDC, TRANSPARENT);
+    ::SetTextColor(memDC, textColor);
+    std::wstring wtext = text.ToStdWstring();
+    RECT rc = { 0, 0, iconSize, iconSize };
+    ::DrawTextW(memDC, wtext.c_str(), -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    ::SelectObject(memDC, oldFont);
+    ::DeleteObject(hFont);
+
+    // Set alpha=255 for all pixels (fully opaque icon, background blends naturally)
+    for (int i = 0; i < iconSize * iconSize; i++)
+        pixels[i] |= 0xFF000000;
+
+    ::SelectObject(memDC, oldBmp);
+    ::DeleteDC(memDC);
+
+    // Mask: all zeros = use color bitmap always
+    HBITMAP hMask = ::CreateBitmap(iconSize, iconSize, 1, 1, NULL);
+    HDC maskDC = ::CreateCompatibleDC(NULL);
+    HBITMAP oldMask = (HBITMAP)::SelectObject(maskDC, hMask);
+    ::PatBlt(maskDC, 0, 0, iconSize, iconSize, BLACKNESS);
+    ::SelectObject(maskDC, oldMask);
+    ::DeleteDC(maskDC);
+
+    ICONINFO ii = {};
+    ii.fIcon    = TRUE;
+    ii.hbmMask  = hMask;
+    ii.hbmColor = hBmp;
+    HICON hIcon = ::CreateIconIndirect(&ii);
+
+    ::DeleteObject(hBmp);
+    ::DeleteObject(hMask);
+    ::ReleaseDC(NULL, screenDC);
+
     wxIcon icon;
-    icon.CopyFromBitmap(bitmap);
-    
-    // Create tooltip with sprint info
+    icon.CreateFromHICON((WXHICON)hIcon);
+
     wxString tooltip = "Sprint " + text;
     if (daysPassed >= 0) {
         tooltip += wxString::Format(" (Day %d)", daysPassed);

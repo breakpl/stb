@@ -132,6 +132,10 @@ wxString JiraService::MakeHttpRequest(const wxString& url) const {
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+#ifdef _WIN32
+    // Use the native Windows certificate store for SSL verification
+    curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+#endif
     
     CURLcode res = curl_easy_perform(curl);
     long http_code = 0;
