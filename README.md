@@ -1,32 +1,8 @@
-# wxWidgets System Tray Application
+# SprintToolBox Application
 
-This project is a system tray application built using wxWidgets, designed as a learning project and alternative to Qt. It demonstrates system tray icons, popup menus, clipboard operations, and dialog windows.
+This project is a system tray application built using wxWidgets, designed as a DT helper tool. It locks shortcuts and features in system tray. Remains in dock as a current sprint number. 
 
 ## Features
-
-- **System Tray Icon**: Runs in the system tray with a custom icon
-- **Timestamp Utilities**: 
-  - Copy current Unix timestamp to clipboard
-  - Copy current Zulu (ISO 8601) timestamp to clipboard
-- **Hex/Decimal Converter**: Dialog window for converting between hexadecimal and decimal numbers
-- **Cross-platform**: Works on macOS, Windows, and Linux
-
-## Project Structure
-
-```
-wxwidgets-learning-project
-├── src
-│   ├── main.cpp              # Entry point - creates tray icon app
-│   ├── TrayIconApp.cpp       # System tray icon implementation
-│   └── ConverterDialog.cpp   # Hex/Dec converter dialog
-├── include
-│   ├── TrayIconApp.h         # Tray icon class declaration
-│   └── ConverterDialog.h     # Converter dialog declaration
-├── CMakeLists.txt            # CMake configuration file
-└── README.md                 # Project documentation
-```
-
-## Setup Instructions
 
 1. **Install wxWidgets**: Make sure you have wxWidgets installed on your system.
    
@@ -58,7 +34,7 @@ wxwidgets-learning-project
 
 After building the project, run the application:
 ```bash
-./wxwidgets-learning-project
+./SprintToolBox
 ```
 
 The application will start in the system tray. Right-click the tray icon to access:
@@ -66,16 +42,3 @@ The application will start in the system tray. Right-click the tray icon to acce
 - Hex/Dec Converter dialog
 - Quit option
 
-## Learning Points
-
-This project demonstrates:
-- **wxTaskBarIcon**: Creating system tray applications
-- **wxMenu**: Dynamic menu creation and event handling
-- **wxDialog**: Creating modal and non-modal dialog windows
-- **wxClipboard**: Clipboard operations
-- **Event handling**: Binding events to methods
-- **Cross-platform UI**: Using wxWidgets for portable applications
-
-## Additional Information
-
-This project serves as a foundation for learning wxWidgets. You can expand upon it by adding more features, experimenting with different UI components, and exploring event handling in wxWidgets.
