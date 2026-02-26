@@ -1,0 +1,41 @@
+[JIRA]
+Email=user.name@your.doma.in
+APIToken=YourJiraTokenHere
+BaseURL=https://dt-rnd.atlassian.net
+BoardID=2355
+
+[MainMenu]
+# Dynamic menu items (max 20 items total)
+# Format: name=url OR name=submenu:SectionName OR ---=separator
+---=separator
+Synthetic Control=submenu:SyntheticControl
+Cloud Control=submenu:CloudControl
+Mission Control=submenu:MissionControl
+---=separator
+ePracownik=https://epracownik.dynatrace.org/#/home
+eBadu=https://dynatrace.ebadu.pl/accounts/login/?next=/content/new/
+Jenkins=https://synthetic-jenkins.ci.dynalabs.io/job/Synthetic/
+AWS=https://internal.ace-tools.dynatrace.com/upm/me/dashboard
+vSphere=https://pl1i-vc01.dynatrace.org/
+Bitbucket=https://bitbucket.lab.dynatrace.org/projects/SYN
+Bas=https://account.dynatrace.com/basweb/myaccount#admin
+JIRA Board=https://dt-rnd.atlassian.net/jira/software/c/projects/DEM/boards/2355/backlog
+Tempo=https://dt-rnd.atlassian.net/plugins/servlet/ac/io.tempo.jira/tempo-app#!/my-work/week?type=LIST
+
+[SyntheticControl]
+# Submenu items (max 15 items per submenu)
+Dev=https://sc.dev-synthetic.internal.dynatracelabs.com
+E2EDev=https://e2edev.dev-synthetic.internal.dynatracelabs.com
+Sprint=https://sc.sprint-synthetic.internal.dynatracelabs.com
+E2ESprint=https://e2esprint.sprint-synthetic.internal.dynatracelabs.com
+Production=https://sc.synthetic.internal.dynatrace.com
+
+[CloudControl]
+Dev=https://cloudcontrol-dev.internal.dynatracelabs.com
+Sprint=https://cloudcontrol-sprint.internal.dynatracelabs.com
+Production=https://cloudcontrol.internal.dynatrace.com
+
+[MissionControl]
+Dev=https://mc-dev.internal.dynatracelabs.com
+Sprint=https://mc-sprint.internal.dynatracelabs.com
+Production=https://mc.internal.dynatrace.com
