@@ -19,6 +19,7 @@ set(SOURCES
     src/main.cpp
     src/SprintToolBoxApp.cpp
     src/ConverterDialog.cpp
+    src/TimeConverterDialog.cpp
     src/JiraService.cpp
     src/Config.cpp
 )

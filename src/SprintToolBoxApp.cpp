@@ -1,5 +1,6 @@
 #include "SprintToolBoxApp.h"
 #include "ConverterDialog.h"
+#include "TimeConverterDialog.h"
 #include "JiraService.h"
 #include "Config.h"
 #include <wx/clipbrd.h>
@@ -47,6 +48,7 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_MENU(ID_COPY_UNIX, SprintToolBoxApp::OnCopyUnixTimestamp)
     EVT_MENU(ID_COPY_ZULU, SprintToolBoxApp::OnCopyZuluTimestamp)
     EVT_MENU(ID_OPEN_CONVERTER, SprintToolBoxApp::OnOpenConverter)
+    EVT_MENU(ID_OPEN_TIME_CONVERTER, SprintToolBoxApp::OnOpenTimeConverter)
     EVT_MENU(ID_QUIT, SprintToolBoxApp::OnQuit)
     EVT_TIMER(ID_SPRINT_TIMER, SprintToolBoxApp::OnSprintUpdateTimer)
     EVT_MENU_RANGE(ID_DYNAMIC_MENU_START, ID_DYNAMIC_MENU_START + 999, SprintToolBoxApp::OnDynamicMenuClick)
@@ -55,6 +57,7 @@ wxEND_EVENT_TABLE()
 SprintToolBoxApp::SprintToolBoxApp() 
     : wxTaskBarIcon()
     , m_converterDialog(nullptr)
+    , m_timeConverterDialog(nullptr)
     , m_jiraService(nullptr)
     , m_config(nullptr)
     , m_sprintUpdateTimer(nullptr)
@@ -130,6 +133,11 @@ SprintToolBoxApp::~SprintToolBoxApp() {
     if (m_converterDialog) {
         m_converterDialog->Destroy();
         m_converterDialog = nullptr;
+    }
+
+    if (m_timeConverterDialog) {
+        m_timeConverterDialog->Destroy();
+        m_timeConverterDialog = nullptr;
     }
 }
 
@@ -320,12 +328,13 @@ wxMenu* SprintToolBoxApp::CreatePopupMenu() {
     // Timestamp menu items
     menu->Append(ID_COPY_UNIX, "Unix: " + m_unixTimestamp);
     menu->Append(ID_COPY_ZULU, "Zulu: " + m_zuluTimestamp);
-    
+    menu->Append(ID_OPEN_TIME_CONVERTER, "More...");
+
     menu->AppendSeparator();
-    
-    // Converter
+
+    // Converters
     menu->Append(ID_OPEN_CONVERTER, "Hex/Dec Converter");
-    
+
     // Add dynamic menu items from config
     std::vector<MenuItem> menuItems = m_config->GetMainMenuItems();
     if (!menuItems.empty()) {
@@ -391,6 +400,16 @@ void SprintToolBoxApp::OnOpenConverter(wxCommandEvent& event) {
     
     m_converterDialog->Show();
     m_converterDialog->Raise();
+}
+
+void SprintToolBoxApp::OnOpenTimeConverter(wxCommandEvent& event) {
+    if (!m_timeConverterDialog) {
+        m_timeConverterDialog = new TimeConverterDialog(nullptr);
+    }
+
+    m_timeConverterDialog->Show();
+    m_timeConverterDialog->Raise();
+    m_timeConverterDialog->ResetToCurrentTime();
 }
 
 void SprintToolBoxApp::OnDynamicMenuClick(wxCommandEvent& event) {

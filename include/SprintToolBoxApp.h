@@ -8,6 +8,7 @@
 #include "JiraService.h"
 
 class ConverterDialog;
+class TimeConverterDialog;
 class Config;
 
 class SprintToolBoxApp : public wxTaskBarIcon {
@@ -28,6 +29,7 @@ private:
     void OnCopyUnixTimestamp(wxCommandEvent& event);
     void OnCopyZuluTimestamp(wxCommandEvent& event);
     void OnOpenConverter(wxCommandEvent& event);
+    void OnOpenTimeConverter(wxCommandEvent& event);
     void OnQuit(wxCommandEvent& event);
     void OnMenuOpen(wxMenuEvent& event);
     void OnSprintUpdateTimer(wxTimerEvent& event);
@@ -41,6 +43,7 @@ private:
     wxString m_unixTimestamp;
     wxString m_zuluTimestamp;
     ConverterDialog* m_converterDialog;
+    TimeConverterDialog* m_timeConverterDialog;
     JiraService* m_jiraService;
     Config* m_config;
     wxTimer* m_sprintUpdateTimer;
@@ -56,6 +59,7 @@ enum {
     ID_COPY_UNIX = wxID_HIGHEST + 1,
     ID_COPY_ZULU,
     ID_OPEN_CONVERTER,
+    ID_OPEN_TIME_CONVERTER,
     ID_QUIT,
     ID_SPRINT_TIMER,
     ID_DYNAMIC_MENU_START = wxID_HIGHEST + 1000  // Base ID for dynamic menu items
