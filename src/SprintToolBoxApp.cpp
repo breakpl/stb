@@ -213,27 +213,54 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
 #else
     // Windows: render ClearType text on an opaque background that matches
     // the taskbar colour — exactly how the system clock is drawn.
-    // No alpha tricks, no supersampling: just crisp native GDI text.
     int iconSize = ::GetSystemMetrics(SM_CXSMICON);
     if (iconSize <= 0) iconSize = 16;
 
-    // Detect Windows light/dark theme
-    bool isLightTheme = false;
+    // Determine the exact taskbar background colour from Windows registry settings.
+    // Handles: dark/light theme, accent colour on taskbar, and transparency.
+    COLORREF bgColor = RGB(31, 31, 31); // dark theme default
+    COLORREF textColor = RGB(255, 255, 255);
     {
-        HKEY hKey;
+        DWORD systemLight = 0, colorPrevalence = 0, transparency = 0;
+        HKEY hPersonalize;
         if (RegOpenKeyExW(HKEY_CURRENT_USER,
                 L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-                0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-            DWORD value = 0, size = sizeof(DWORD);
-            if (RegQueryValueExW(hKey, L"SystemUsesLightTheme", NULL, NULL,
-                    (LPBYTE)&value, &size) == ERROR_SUCCESS)
-                isLightTheme = (value == 1);
-            RegCloseKey(hKey);
+                0, KEY_READ, &hPersonalize) == ERROR_SUCCESS) {
+            DWORD sz = sizeof(DWORD);
+            RegQueryValueExW(hPersonalize, L"SystemUsesLightTheme", NULL, NULL, (LPBYTE)&systemLight, &sz);
+            sz = sizeof(DWORD);
+            RegQueryValueExW(hPersonalize, L"ColorPrevalence", NULL, NULL, (LPBYTE)&colorPrevalence, &sz);
+            sz = sizeof(DWORD);
+            RegQueryValueExW(hPersonalize, L"EnableTransparency", NULL, NULL, (LPBYTE)&transparency, &sz);
+            RegCloseKey(hPersonalize);
+        }
+
+        if (systemLight) {
+            // Light taskbar
+            bgColor = RGB(243, 243, 243);
+            textColor = RGB(0, 0, 0);
+        } else if (colorPrevalence) {
+            // Dark theme + accent colour on taskbar: read DWM accent
+            HKEY hDwm;
+            if (RegOpenKeyExW(HKEY_CURRENT_USER,
+                    L"Software\\Microsoft\\Windows\\DWM",
+                    0, KEY_READ, &hDwm) == ERROR_SUCCESS) {
+                DWORD abgr = 0, sz = sizeof(DWORD);
+                if (RegQueryValueExW(hDwm, L"AccentColor", NULL, NULL, (LPBYTE)&abgr, &sz) == ERROR_SUCCESS) {
+                    // AccentColor is stored as 0xAABBGGRR
+                    bgColor = RGB(abgr & 0xFF, (abgr >> 8) & 0xFF, (abgr >> 16) & 0xFF);
+                }
+                RegCloseKey(hDwm);
+            }
+            // Light or dark text based on accent luminance
+            int lum = (GetRValue(bgColor) * 299 + GetGValue(bgColor) * 587 + GetBValue(bgColor) * 114) / 1000;
+            textColor = (lum > 128) ? RGB(0, 0, 0) : RGB(255, 255, 255);
+        } else {
+            // Dark theme, no accent → standard dark taskbar
+            bgColor = RGB(31, 31, 31);
+            textColor = RGB(255, 255, 255);
         }
     }
-    // Match the default taskbar background colour
-    COLORREF bgColor   = isLightTheme ? RGB(230, 230, 230) : RGB(32, 32, 32);
-    COLORREF textColor = isLightTheme ? RGB(32,  32,  32)  : RGB(255, 255, 255);
 
     BITMAPINFO bmi = {};
     bmi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
@@ -249,17 +276,19 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
     HDC memDC = ::CreateCompatibleDC(screenDC);
     HBITMAP oldBmp = (HBITMAP)::SelectObject(memDC, hBmp);
 
-    // Fill with taskbar background
+    // Fill with the exact taskbar background colour
     HBRUSH hBgBrush = ::CreateSolidBrush(bgColor);
     RECT fillRc = { 0, 0, iconSize, iconSize };
     ::FillRect(memDC, &fillRc, hBgBrush);
     ::DeleteObject(hBgBrush);
 
-    // Draw text with ClearType — same quality as the system clock
-    int fh = -MulDiv((text.Length() <= 3) ? 8 : 6, ::GetDeviceCaps(screenDC, LOGPIXELSY), 72);
+    // Draw crisp pixel-aliased text — at 16×16 ClearType just blurs things.
+    // NONANTIALIASED_QUALITY gives sharp pixel edges like bitmap fonts.
+    // Use pixel height directly for precise control at small sizes.
+    int fh = (text.Length() <= 2) ? -(iconSize - 3) : -(iconSize - 5);
     HFONT hFont = ::CreateFontW(fh, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Segoe UI");
+        DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
+        NONANTIALIASED_QUALITY, DEFAULT_PITCH, L"Segoe UI");
     HFONT oldFont = (HFONT)::SelectObject(memDC, hFont);
     ::SetBkMode(memDC, TRANSPARENT);
     ::SetTextColor(memDC, textColor);
