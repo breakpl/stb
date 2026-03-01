@@ -25,13 +25,11 @@ public:
     int m_currentDaysPassed;
     
 private:
-    void OnUpdateTimestamps(wxCommandEvent& event);
     void OnCopyUnixTimestamp(wxCommandEvent& event);
     void OnCopyZuluTimestamp(wxCommandEvent& event);
     void OnOpenConverter(wxCommandEvent& event);
     void OnOpenTimeConverter(wxCommandEvent& event);
     void OnQuit(wxCommandEvent& event);
-    void OnMenuOpen(wxMenuEvent& event);
     void OnSprintUpdateTimer(wxTimerEvent& event);
     void OnDynamicMenuClick(wxCommandEvent& event);
     
@@ -47,8 +45,10 @@ private:
     JiraService* m_jiraService;
     Config* m_config;
     wxTimer* m_sprintUpdateTimer;
+#ifdef __WXOSX__
     void* m_themeObserver;  // NSObject observer for theme changes on macOS
-    void* m_statusItem;  // NSStatusItem for direct icon control on macOS
+    void* m_statusItem;     // NSStatusItem for direct icon control on macOS
+#endif
     std::map<int, wxString> m_menuUrlMap;  // Maps menu item IDs to URLs
     
     wxDECLARE_EVENT_TABLE();

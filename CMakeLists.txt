@@ -20,6 +20,7 @@ set(SOURCES
     src/SprintToolBoxApp.cpp
     src/ConverterDialog.cpp
     src/TimeConverterDialog.cpp
+    src/TimestampUtils.cpp
     src/JiraService.cpp
     src/Config.cpp
 )
@@ -34,3 +35,6 @@ if(APPLE)
 else()
     target_link_libraries(${PROJECT_NAME} ${wxWidgets_LIBRARIES} ${CURL_LIBRARIES})
 endif()
+
+enable_testing()
+add_subdirectory(tests)

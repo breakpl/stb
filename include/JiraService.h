@@ -43,21 +43,23 @@ public:
     // Set callbacks
     void SetSuccessCallback(SuccessCallback callback) { m_successCallback = callback; }
     void SetErrorCallback(ErrorCallback callback) { m_errorCallback = callback; }
-    
+
     // Fetch current sprint
     void FetchCurrentSprint();
     void ReloadCredentials();
-    
+
+    // Exposed for unit testing
+    SprintInfo ParseSprintJson(const wxString& json) const;
+    wxDateTime ParseIsoDateTime(const wxString& isoString) const;
+
 private:
     void LoadCredentials();
     void OnFetchComplete(const wxString& response);
     void OnFetchError(const wxString& error);
-    
+
     // HTTP helper methods
     wxString Base64Encode(const wxString& input) const;
     wxString MakeHttpRequest(const wxString& url) const;
-    SprintInfo ParseSprintJson(const wxString& json) const;
-    wxDateTime ParseIsoDateTime(const wxString& isoString) const;
     
     wxString m_email;
     wxString m_token;

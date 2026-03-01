@@ -7,14 +7,10 @@
 #include <wx/datetime.h>
 #include <wx/icon.h>
 #include <wx/bitmap.h>
-#include <wx/dcmemory.h>
-#include <wx/graphics.h>
-#include <wx/rawbmp.h>
 
 #ifdef _WIN32
 #include <windows.h>
 #include <string>
-#include <algorithm>
 #endif
 
 #ifdef __WXOSX__
@@ -39,8 +35,6 @@
 #endif
 
 // Constants for menu bar icon
-static const int ICON_WIDTH = 36;
-static const int ICON_HEIGHT = 22;
 static const int ICON_FONT_SIZE_MAC = 14;  // SF Mono Regular – sized for attributedTitle
 static const int SPRINT_UPDATE_INTERVAL_MS = 300000; // 5 minutes
 
@@ -63,8 +57,10 @@ SprintToolBoxApp::SprintToolBoxApp()
     , m_sprintUpdateTimer(nullptr)
     , m_currentIconText("...")
     , m_currentDaysPassed(-1)
+#ifdef __WXOSX__
     , m_themeObserver(nullptr)
     , m_statusItem(nullptr)
+#endif
 {
     // Initialize configuration
     m_config = & Config::GetInstance();
@@ -459,14 +455,6 @@ void SprintToolBoxApp::OnDynamicMenuClick(wxCommandEvent& event) {
 void SprintToolBoxApp::OnQuit(wxCommandEvent& event) {
     RemoveIcon();
     wxExit();
-}
-
-void SprintToolBoxApp::OnUpdateTimestamps(wxCommandEvent& event) {
-    UpdateTimestamps();
-}
-
-void SprintToolBoxApp::OnMenuOpen(wxMenuEvent& event) {
-    UpdateTimestamps();
 }
 
 void SprintToolBoxApp::OnSprintUpdateTimer(wxTimerEvent& event) {

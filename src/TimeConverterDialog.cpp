@@ -1,14 +1,8 @@
 #include "TimeConverterDialog.h"
+#include "TimestampUtils.h"
 #include <wx/sizer.h>
 #include <wx/stattext.h>
 #include <ctime>
-#include <cstdio>
-#include <cstring>
-
-// Portable UTC→time_t helper
-#ifdef _WIN32
-#  define timegm _mkgmtime
-#endif
 
 wxBEGIN_EVENT_TABLE(TimeConverterDialog, wxDialog)
     EVT_CLOSE(TimeConverterDialog::OnClose)
@@ -75,22 +69,17 @@ void TimeConverterDialog::ResetToCurrentTime() {
 
 void TimeConverterDialog::UpdateFromTimestamp(time_t ts, wxTextCtrl* source) {
     m_updating = true;
-    char buf[64];
 
     // Local time field
     if (source != m_localField) {
-        struct tm* lt = localtime(&ts);
-        strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", lt);
-        m_localField->ChangeValue(buf);
+        m_localField->ChangeValue(TimestampUtils::ToLocal(ts));
         m_localField->SetBackgroundColour(wxNullColour);
         m_localField->Refresh();
     }
 
     // Zulu / UTC field
     if (source != m_zuluField) {
-        struct tm* ut = gmtime(&ts);
-        strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", ut);
-        m_zuluField->ChangeValue(buf);
+        m_zuluField->ChangeValue(TimestampUtils::ToZulu(ts));
         m_zuluField->SetBackgroundColour(wxNullColour);
         m_zuluField->Refresh();
     }
@@ -131,21 +120,10 @@ void TimeConverterDialog::OnLocalChanged(wxCommandEvent& /*event*/) {
         return;
     }
 
-    int y, mo, d, h, mi, s;
-    if (sscanf(text.mb_str(), "%d-%d-%d %d:%d:%d", &y, &mo, &d, &h, &mi, &s) == 6) {
-        struct tm t = {};
-        t.tm_year = y - 1900;
-        t.tm_mon  = mo - 1;
-        t.tm_mday = d;
-        t.tm_hour = h;
-        t.tm_min  = mi;
-        t.tm_sec  = s;
-        t.tm_isdst = -1;
-        time_t ts = mktime(&t);
-        if (ts != (time_t)-1) {
-            UpdateFromTimestamp(ts, m_localField);
-            return;
-        }
+    time_t ts = TimestampUtils::FromLocal(text.ToStdString());
+    if (ts != (time_t)-1) {
+        UpdateFromTimestamp(ts, m_localField);
+        return;
     }
 
     // Parse failed — mark all fields red
@@ -176,24 +154,10 @@ void TimeConverterDialog::OnZuluChanged(wxCommandEvent& /*event*/) {
     }
 
     // Accept: YYYY-MM-DDTHH:MM:SSZ  /  YYYY-MM-DDTHH:MM:SS  /  YYYY-MM-DD HH:MM:SSZ
-    int y, mo, d, h, mi, s;
-    bool ok = (sscanf(text.mb_str(), "%d-%d-%dT%d:%d:%dZ", &y, &mo, &d, &h, &mi, &s) == 6)
-           || (sscanf(text.mb_str(), "%d-%d-%dT%d:%d:%d",  &y, &mo, &d, &h, &mi, &s) == 6)
-           || (sscanf(text.mb_str(), "%d-%d-%d %d:%d:%dZ", &y, &mo, &d, &h, &mi, &s) == 6);
-
-    if (ok) {
-        struct tm t = {};
-        t.tm_year = y - 1900;
-        t.tm_mon  = mo - 1;
-        t.tm_mday = d;
-        t.tm_hour = h;
-        t.tm_min  = mi;
-        t.tm_sec  = s;
-        time_t ts = timegm(&t);
-        if (ts != (time_t)-1) {
-            UpdateFromTimestamp(ts, m_zuluField);
-            return;
-        }
+    time_t ts = TimestampUtils::FromZulu(text.ToStdString());
+    if (ts != (time_t)-1) {
+        UpdateFromTimestamp(ts, m_zuluField);
+        return;
     }
 
     m_updating = true;
