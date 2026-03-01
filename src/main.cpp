@@ -15,7 +15,7 @@ wxIMPLEMENT_APP(SprintToolBox);
 bool SprintToolBox::OnInit() {
     // Enable logging
     wxLog::SetActiveTarget(new wxLogStderr());
-    
+
     // Create the tray icon
     m_trayIcon = new SprintToolBoxApp();
     

@@ -37,9 +37,13 @@ void JiraService::ReloadCredentials() {
 
 void JiraService::FetchCurrentSprint() {
     wxLogMessage("Fetching current sprint from JIRA...");
-    
-    // Check for placeholder credentials
-    if (m_email == "test@example.com" || m_email.IsEmpty() || 
+
+    // Check for unconfigured / placeholder credentials (including the default
+    // example email that ships with SprintToolBox.ini-example).
+    static const wxString DEFAULT_EMAIL = "user.name@your.doma.in";
+    if (m_email == DEFAULT_EMAIL ||
+        m_email == "test@example.com" || m_email.IsEmpty() ||
+        m_token == "YourJiraTokenHere" ||
         m_token == "your_api_token_here" || m_token.IsEmpty() ||
         m_baseURL == "https://your-jira-instance.atlassian.net" || m_baseURL.IsEmpty()) {
         wxLogWarning("JIRA credentials contain placeholders or are empty. Please update SprintToolBox.ini");
@@ -48,39 +52,43 @@ void JiraService::FetchCurrentSprint() {
         }
         return;
     }
-    
+
+    wxString apiUrl = wxString::Format("%s/rest/agile/1.0/board/%d/sprint?state=active",
+                                       m_baseURL, m_boardID);
+    wxLogMessage("Making request to: %s", apiUrl);
+
     try {
-        wxString apiUrl = wxString::Format("%s/rest/agile/1.0/board/%d/sprint?state=active", 
-                                          m_baseURL, m_boardID);
-        
-        wxLogMessage("Making request to: %s", apiUrl);
-        wxString response = MakeHttpRequest(apiUrl);
-        
-        if (response.IsEmpty()) {
+        // Synchronous HTTP call – curl timeouts (10 s connect, 20 s total)
+        // bound the worst-case block.  For a tray-only app with no windows
+        // this is fine; the macOS status-bar icon stays visible during the call.
+        std::string body = MakeHttpRequest(apiUrl);
+
+        if (body.empty()) {
             wxLogWarning("Empty response from JIRA API");
-            if (m_errorCallback) {
+            if (m_errorCallback)
                 m_errorCallback("Empty response from JIRA API", "EMPTY_RESPONSE");
-            }
             return;
         }
-        
-        wxLogMessage("Received response, parsing...");
+
+        wxString response = wxString::FromUTF8(body.c_str());
         SprintInfo sprint = ParseSprintJson(response);
-        
-        if (m_successCallback) {
+        wxLogMessage("Sprint fetched: %s", sprint.name);
+        if (m_successCallback)
             m_successCallback(sprint);
-        }
-        
+
     } catch (const std::exception& e) {
-        wxLogError("JIRA fetch exception: %s", e.what());
-        if (m_errorCallback) {
-            m_errorCallback(wxString(e.what()), "EXCEPTION");
-        }
+        wxString msg(e.what());
+        wxString code;
+        if (msg.StartsWith("NETWORK_ERROR:"))      code = "NETWORK_ERROR";
+        else if (msg.StartsWith("AUTH_ERROR:"))     code = "AUTH_ERROR";
+        else                                        code = "EXCEPTION";
+        wxLogError("JIRA fetch exception: %s (%s)", msg, code);
+        if (m_errorCallback)
+            m_errorCallback(msg, code);
     } catch (...) {
         wxLogError("Unknown JIRA fetch error");
-        if (m_errorCallback) {
+        if (m_errorCallback)
             m_errorCallback("Unknown error occurred", "UNKNOWN_ERROR");
-        }
     }
 }
 
@@ -102,61 +110,59 @@ wxString JiraService::Base64Encode(const wxString& input) const {
     return wxBase64Encode(input.ToUTF8(), input.Length());
 }
 
-// Helper method: Make HTTP request with libcurl
+// Thread-safe HTTP helper: takes all parameters explicitly, no member access.
+// Returns the response body on success; throws std::runtime_error on failure.
 static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
     ((std::string*)userp)->append((char*)contents, size * nmemb);
     return size * nmemb;
 }
 
-wxString JiraService::MakeHttpRequest(const wxString& url) const {
+std::string JiraService::MakeHttpRequest(const wxString& url) const {
     CURL* curl = curl_easy_init();
-    std::string readBuffer;
-    
-    if (!curl) {
-        throw std::runtime_error("Failed to initialize CURL");
-    }
-    
+    if (!curl)
+        throw std::runtime_error("NETWORK_ERROR: curl_easy_init failed");
+
     // Prepare Basic Auth header
     wxString auth = m_email + ":" + m_token;
-    wxString authHeader = "Authorization: Basic " + Base64Encode(auth);
-    
+    std::string authStr = ("Authorization: Basic " + Base64Encode(auth)).ToStdString();
+
+    std::string readBuffer;
     struct curl_slist* headers = nullptr;
-    headers = curl_slist_append(headers, authHeader.ToStdString().c_str());
+    headers = curl_slist_append(headers, authStr.c_str());
     headers = curl_slist_append(headers, "Content-Type: application/json");
     headers = curl_slist_append(headers, "Accept: application/json");
-    
-    curl_easy_setopt(curl, CURLOPT_URL, url.ToStdString().c_str());
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+    curl_easy_setopt(curl, CURLOPT_URL,           url.ToStdString().c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER,    headers);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA,     &readBuffer);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L); // 10 s TCP connect
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT,        20L); // 20 s total
 #ifdef _WIN32
-    // Use the native Windows certificate store for SSL verification
     curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
 #endif
-    
+
     CURLcode res = curl_easy_perform(curl);
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-    
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
-    
-    if (res != CURLE_OK) {
-        throw std::runtime_error(std::string("CURL error: ") + curl_easy_strerror(res));
-    }
-    
-    if (http_code != 200) {
+
+    if (res != CURLE_OK)
+        throw std::runtime_error(std::string("NETWORK_ERROR: ") + curl_easy_strerror(res));
+    if (http_code == 401 || http_code == 403)
+        throw std::runtime_error("AUTH_ERROR: HTTP " + std::to_string(http_code));
+    if (http_code != 200)
         throw std::runtime_error("HTTP error " + std::to_string(http_code));
-    }
-    
-    return wxString::FromUTF8(readBuffer.c_str());
+
+    return readBuffer;
 }
 
 // Helper method: Parse ISO 8601 datetime
-wxDateTime JiraService::ParseIsoDateTime(const wxString& isoString) const {
+wxDateTime JiraService::ParseIsoDateTime(const wxString& isoString) {
     wxDateTime dt;
     // Format: 2024-02-25T12:34:56.789Z
     if (!isoString.IsEmpty()) {
@@ -166,7 +172,7 @@ wxDateTime JiraService::ParseIsoDateTime(const wxString& isoString) const {
 }
 
 // Helper method: Simple JSON parsing for sprint info
-SprintInfo JiraService::ParseSprintJson(const wxString& json) const {
+SprintInfo JiraService::ParseSprintJson(const wxString& json) {
     SprintInfo sprint;
     sprint.id = 0;
     sprint.name = "Unknown Sprint";

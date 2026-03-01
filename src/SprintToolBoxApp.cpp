@@ -36,7 +36,32 @@
 
 // Constants for menu bar icon
 static const int ICON_FONT_SIZE_MAC = 14;  // SF Mono Regular – sized for attributedTitle
-static const int SPRINT_UPDATE_INTERVAL_MS = 300000; // 5 minutes
+static const int SPRINT_UPDATE_INTERVAL_MS  = 300000; // 5 minutes
+static const int NETWORK_RETRY_INTERVAL_MS  = 20000;  // 20 s  (window: 2 min)
+static const int NETWORK_RETRY_MAX_COUNT    = 6;      // 6 × 20 s = 2 min
+static const int AUTH_RETRY_INTERVAL_MS     = 30000;  // 30 s  (window: 5 min)
+static const int AUTH_RETRY_MAX_COUNT       = 10;     // 10 × 30 s = 5 min
+
+#ifdef _WIN32
+// ── Windows theme-change observer ────────────────────────────────────────────
+// A tiny invisible window whose sole job is to receive WM_SETTINGCHANGE with
+// "ImmersiveColorSet" (sent when the user switches light/dark/accent themes)
+// and forward it to our SprintToolBoxApp so the tray icon repaints.
+static const wchar_t* THEME_WND_CLASS = L"STB_ThemeWatcher";
+
+static LRESULT CALLBACK ThemeWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (msg == WM_SETTINGCHANGE && lParam) {
+        // lParam is a pointer to the string identifying what changed
+        if (wcscmp(reinterpret_cast<LPCWSTR>(lParam), L"ImmersiveColorSet") == 0) {
+            auto* app = reinterpret_cast<SprintToolBoxApp*>(::GetWindowLongPtr(hwnd, GWLP_USERDATA));
+            if (app) {
+                app->UpdateTrayIcon(app->m_currentIconText, app->m_currentDaysPassed);
+            }
+        }
+    }
+    return ::DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+#endif
 
 wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_MENU(ID_COPY_UNIX, SprintToolBoxApp::OnCopyUnixTimestamp)
@@ -45,6 +70,8 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_MENU(ID_OPEN_TIME_CONVERTER, SprintToolBoxApp::OnOpenTimeConverter)
     EVT_MENU(ID_QUIT, SprintToolBoxApp::OnQuit)
     EVT_TIMER(ID_SPRINT_TIMER, SprintToolBoxApp::OnSprintUpdateTimer)
+    EVT_TIMER(ID_RETRY_TIMER,  SprintToolBoxApp::OnRetryTimer)
+    EVT_TIMER(ID_CONFIG_WATCH_TIMER, SprintToolBoxApp::OnConfigWatchTimer)
     EVT_MENU_RANGE(ID_DYNAMIC_MENU_START, ID_DYNAMIC_MENU_START + 999, SprintToolBoxApp::OnDynamicMenuClick)
 wxEND_EVENT_TABLE()
 
@@ -55,11 +82,18 @@ SprintToolBoxApp::SprintToolBoxApp()
     , m_jiraService(nullptr)
     , m_config(nullptr)
     , m_sprintUpdateTimer(nullptr)
+    , m_configWatchTimer(nullptr)
+    , m_retryTimer(nullptr)
+    , m_retryCount(0)
+    , m_retryMaxCount(0)
     , m_currentIconText("...")
     , m_currentDaysPassed(-1)
 #ifdef __WXOSX__
     , m_themeObserver(nullptr)
     , m_statusItem(nullptr)
+#endif
+#ifdef _WIN32
+    , m_themeHwnd(nullptr)
 #endif
 {
     // Initialize configuration
@@ -77,6 +111,14 @@ SprintToolBoxApp::SprintToolBoxApp()
     // Setup timer for periodic sprint updates
     m_sprintUpdateTimer = new wxTimer(this, ID_SPRINT_TIMER);
     m_sprintUpdateTimer->Start(SPRINT_UPDATE_INTERVAL_MS);
+
+    // Retry timer (started on demand when a transient error occurs)
+    m_retryTimer = new wxTimer(this, ID_RETRY_TIMER);
+
+    // Config-file watcher: poll the INI modification time every 10 s so
+    // that credential / setting changes are picked up promptly.
+    m_configWatchTimer = new wxTimer(this, ID_CONFIG_WATCH_TIMER);
+    m_configWatchTimer->Start(10000);
     
 #ifdef __WXOSX__
     // Setup theme change observer
@@ -91,11 +133,32 @@ SprintToolBoxApp::SprintToolBoxApp()
             object:nil];
     }
 #endif
-    
+
+#ifdef _WIN32
+    // Create a hidden message-only window to receive WM_SETTINGCHANGE
+    // when the user switches Windows light/dark/accent theme.
+    {
+        WNDCLASSW wc = {};
+        wc.lpfnWndProc   = ThemeWndProc;
+        wc.hInstance     = ::GetModuleHandle(NULL);
+        wc.lpszClassName = THEME_WND_CLASS;
+        ::RegisterClassW(&wc);
+        m_themeHwnd = ::CreateWindowExW(0, THEME_WND_CLASS, L"",
+                                        0, 0, 0, 0, 0,
+                                        HWND_MESSAGE, NULL, wc.hInstance, NULL);
+        if (m_themeHwnd) {
+            ::SetWindowLongPtr(m_themeHwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+        }
+    }
+#endif
+
     // Initial icon and data
     UpdateTrayIcon("...");
     UpdateTimestamps();
-    UpdateSprint();
+    // Defer the first sprint fetch so the wx event loop is already running
+    // when the (synchronous) HTTP call is made.  Without this, the call
+    // blocks the constructor and the tray icon freezes on "...".
+    CallAfter([this]() { UpdateSprint(); });
 }
 
 SprintToolBoxApp::~SprintToolBoxApp() {
@@ -114,11 +177,31 @@ SprintToolBoxApp::~SprintToolBoxApp() {
         m_themeObserver = nullptr;
     }
 #endif
-    
+
+#ifdef _WIN32
+    if (m_themeHwnd) {
+        ::DestroyWindow(m_themeHwnd);
+        ::UnregisterClassW(THEME_WND_CLASS, ::GetModuleHandle(NULL));
+        m_themeHwnd = nullptr;
+    }
+#endif
+
     if (m_sprintUpdateTimer) {
         m_sprintUpdateTimer->Stop();
         delete m_sprintUpdateTimer;
         m_sprintUpdateTimer = nullptr;
+    }
+
+    if (m_configWatchTimer) {
+        m_configWatchTimer->Stop();
+        delete m_configWatchTimer;
+        m_configWatchTimer = nullptr;
+    }
+
+    if (m_retryTimer) {
+        m_retryTimer->Stop();
+        delete m_retryTimer;
+        m_retryTimer = nullptr;
     }
     
     if (m_jiraService) {
@@ -458,16 +541,45 @@ void SprintToolBoxApp::OnQuit(wxCommandEvent& event) {
 }
 
 void SprintToolBoxApp::OnSprintUpdateTimer(wxTimerEvent& event) {
+    wxLogMessage("Scheduled update timer fired.");
     UpdateSprint();
+}
+
+void SprintToolBoxApp::OnRetryTimer(wxTimerEvent& event) {
+    m_retryCount++;
+    if (m_retryCount >= m_retryMaxCount) {
+        m_retryTimer->Stop();
+        m_retryCount = 0;
+        wxLogWarning("Retry window exhausted, resuming normal schedule.");
+        return;
+    }
+    wxLogMessage("Retry attempt %d/%d...", m_retryCount, m_retryMaxCount);
+    // Reload credentials on each retry so an updated ini is picked up immediately
+    if (m_jiraService) m_jiraService->ReloadCredentials();
+    UpdateSprint();
+}
+
+void SprintToolBoxApp::OnConfigWatchTimer(wxTimerEvent& event) {
+    if (Config::GetInstance().HasConfigFileChanged()) {
+        wxLogMessage("Config file changed on disk – reloading.");
+        UpdateSprint();
+    }
 }
 
 void SprintToolBoxApp::UpdateSprint() {
     if (m_jiraService) {
+        m_jiraService->ReloadCredentials(); // re-read ini on every tick
         m_jiraService->FetchCurrentSprint();
     }
 }
 
 void SprintToolBoxApp::OnSprintFetched(const SprintInfo& sprint) {
+    // Clear any active error-retry loop
+    if (m_retryTimer && m_retryTimer->IsRunning()) {
+        m_retryTimer->Stop();
+        m_retryCount = 0;
+    }
+
     wxLogMessage("Sprint fetched: %s", sprint.name);
     
     wxString displayText = sprint.GetDisplayText();
@@ -477,7 +589,33 @@ void SprintToolBoxApp::OnSprintFetched(const SprintInfo& sprint) {
 }
 
 void SprintToolBoxApp::OnSprintError(const wxString& error, const wxString& errorCode) {
-    wxLogWarning("Sprint fetch error: %s", error);
-    UpdateTrayIcon(errorCode);
-    // Tooltip is already set in UpdateTrayIcon
+    wxLogWarning("Sprint fetch error: %s (%s)", error, errorCode);
+
+    if (errorCode == "NETWORK_ERROR") {
+#ifdef _WIN32
+        UpdateTrayIcon("NE!");
+#else
+        UpdateTrayIcon("net.err");
+#endif
+        // Start network-error retry loop (every 20 s, up to 2 min)
+        if (m_retryTimer && !m_retryTimer->IsRunning()) {
+            m_retryCount    = 0;
+            m_retryMaxCount = NETWORK_RETRY_MAX_COUNT;
+            m_retryTimer->Start(NETWORK_RETRY_INTERVAL_MS);
+        }
+    } else if (errorCode == "AUTH_ERROR") {
+#ifdef _WIN32
+        UpdateTrayIcon("EA!");
+#else
+        UpdateTrayIcon("auth.err");
+#endif
+        // Start auth-error retry loop (every 30 s, up to 5 min)
+        if (m_retryTimer && !m_retryTimer->IsRunning()) {
+            m_retryCount    = 0;
+            m_retryMaxCount = AUTH_RETRY_MAX_COUNT;
+            m_retryTimer->Start(AUTH_RETRY_INTERVAL_MS);
+        }
+    } else {
+        UpdateTrayIcon(errorCode);
+    }
 }

@@ -10,7 +10,7 @@ Config& Config::GetInstance() {
     return instance;
 }
 
-Config::Config() : m_jiraBoardID(0) {
+Config::Config() : m_jiraBoardID(0), m_configModTime(0) {
     LoadConfig();
 }
 
@@ -25,31 +25,42 @@ void Config::Reload() {
 
 wxString Config::FindConfigFile() const {
     wxArrayString searchPaths;
-    
-    // For bundled app: Contents/Resources/SprintToolBox.ini
-    wxString resourcePath = wxStandardPaths::Get().GetResourcesDir() + "/SprintToolBox.ini";
-    searchPaths.Add(resourcePath);
-    
-    // For development: same directory as executable
-    wxString appDir = wxStandardPaths::Get().GetExecutablePath();
-    wxFileName appFileName(appDir);
-    wxString appDirPath = appFileName.GetPath() + "/SprintToolBox.ini";
-    searchPaths.Add(appDirPath);
-    
-    // Current directory
+
+    // Walk up ancestor directories starting from the directory containing the
+    // executable (the first entry IS the exe's own directory).
+    wxFileName walker(wxStandardPaths::Get().GetExecutablePath());
+    for (int i = 0; i < 7; i++) {
+        searchPaths.Add(walker.GetPath() + "/SprintToolBox.ini");
+        walker.RemoveLastDir();
+    }
+
+    // User home directory – convenient location for end users
+    searchPaths.Add(wxGetHomeDir() + "/SprintToolBox.ini");
+
+    // Current working directory
     searchPaths.Add("SprintToolBox.ini");
-    
-    for (const auto& path : searchPaths) {
-        if (wxFileExists(path)) {
-            wxLogMessage("Found config at: %s", path);
-            return path;
+
+    // Bundled Resources – kept as last-resort fallback because it may contain
+    // the example/stale credentials that were copied at package time.
+    searchPaths.Add(wxStandardPaths::Get().GetResourcesDir() + "/SprintToolBox.ini");
+
+    for (size_t i = 0; i < searchPaths.GetCount(); i++) {
+        if (wxFileExists(searchPaths[i])) {
+            wxLogMessage("Found config at: %s", searchPaths[i]);
+            return searchPaths[i];
         }
     }
-    
-    wxLogWarning("SprintToolBox.ini not found in any search location");
-    wxLogWarning("Please create SprintToolBox.ini from SprintToolBox.ini.example");
-    
-    return searchPaths[0]; // Return first path for error messages
+
+    wxLogWarning("SprintToolBox.ini not found. Place it at: %s", wxGetHomeDir() + "/SprintToolBox.ini");
+    return wxGetHomeDir() + "/SprintToolBox.ini";
+}
+
+bool Config::HasConfigFileChanged() const {
+    if (m_configPath.IsEmpty()) return false;
+    wxFileName fn(m_configPath);
+    if (!fn.FileExists()) return false;
+    wxDateTime modTime = fn.GetModificationTime();
+    return modTime.IsValid() && modTime.GetTicks() != m_configModTime;
 }
 
 void Config::LoadConfig() {
@@ -57,6 +68,15 @@ void Config::LoadConfig() {
     
     if (!wxFileExists(m_configPath)) {
         return;
+    }
+
+    // Record the file's modification time so HasConfigFileChanged() can
+    // detect edits without having to re-parse the whole file.
+    {
+        wxFileName fn(m_configPath);
+        wxDateTime modTime = fn.GetModificationTime();
+        if (modTime.IsValid())
+            m_configModTime = modTime.GetTicks();
     }
     
     wxFileInputStream input(m_configPath);

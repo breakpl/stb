@@ -31,6 +31,10 @@ public:
     
     // Reload configuration from file
     void Reload();
+
+    // Returns true when the INI file's modification time has changed
+    // since the last LoadConfig() / Reload().  Cheap stat()-based check.
+    bool HasConfigFileChanged() const;
     
     // JIRA credentials
     wxString GetJiraEmail() const { return m_jiraEmail; }
@@ -52,6 +56,7 @@ private:
     void LoadSubmenu(const wxString& section);
     
     wxString m_configPath;
+    time_t   m_configModTime;   // last-seen modification time of the INI file
     wxString m_jiraEmail;
     wxString m_jiraToken;
     wxString m_jiraBaseURL;

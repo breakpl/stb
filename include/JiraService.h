@@ -48,9 +48,9 @@ public:
     void FetchCurrentSprint();
     void ReloadCredentials();
 
-    // Exposed for unit testing
-    SprintInfo ParseSprintJson(const wxString& json) const;
-    wxDateTime ParseIsoDateTime(const wxString& isoString) const;
+    // Exposed for unit testing – static because they are pure parsing helpers
+    static SprintInfo ParseSprintJson(const wxString& json);
+    static wxDateTime ParseIsoDateTime(const wxString& isoString);
 
 private:
     void LoadCredentials();
@@ -59,7 +59,7 @@ private:
 
     // HTTP helper methods
     wxString Base64Encode(const wxString& input) const;
-    wxString MakeHttpRequest(const wxString& url) const;
+    std::string MakeHttpRequest(const wxString& url) const;
     
     wxString m_email;
     wxString m_token;

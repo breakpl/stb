@@ -43,49 +43,44 @@ static wxString SingleSprintJson(const wxString& name, int id, const wxString& s
         R"({"maxResults":50,"startAt":0,"isLast":true,"values":[)"
         R"({"id":%d,"self":"https://example.atlassian.net/rest/agile/1.0/sprint/%d",)"
         R"("state":"%s","name":"%s",)"
-        R"("startDate":"2024-02-12","endDate":"2024-02-25"}]})",
+        R"("startDate":"2024-02-12T00:00:00.000Z","endDate":"2024-02-25T00:00:00.000Z"}]})",
         id, id, state, name);
 }
 
 TEST_CASE("ParseSprintJson extracts id, name and state from a single sprint", "[jira]") {
-    JiraService svc;
-    SprintInfo sprint = svc.ParseSprintJson(SingleSprintJson("Dev Sprint 333", 42, "active"));
+    SprintInfo sprint = JiraService::ParseSprintJson(SingleSprintJson("Dev Sprint 333", 42, "active"));
     REQUIRE(sprint.id   == 42);
     REQUIRE(sprint.name == "Dev Sprint 333");
     REQUIRE(sprint.state == "active");
 }
 
 TEST_CASE("ParseSprintJson picks the sprint with the highest number", "[jira]") {
-    JiraService svc;
     wxString json =
         R"({"values":[)"
         R"({"id":1,"state":"active","name":"Dev Sprint 100","startDate":"2024-01-01","endDate":"2024-01-14"},)"
         R"({"id":2,"state":"active","name":"Dev Sprint 200","startDate":"2024-02-01","endDate":"2024-02-14"})"
         R"(]})";
-    SprintInfo sprint = svc.ParseSprintJson(json);
+    SprintInfo sprint = JiraService::ParseSprintJson(json);
     REQUIRE(sprint.name == "Dev Sprint 200");
     REQUIRE(sprint.id   == 2);
 }
 
 TEST_CASE("ParseSprintJson falls back to first object when no Dev Sprint name is found", "[jira]") {
-    JiraService svc;
     wxString json =
         R"({"values":[{"id":7,"state":"active","name":"Some Other Sprint",)"
         R"("startDate":"2024-02-01","endDate":"2024-02-14"}]})";
-    SprintInfo sprint = svc.ParseSprintJson(json);
+    SprintInfo sprint = JiraService::ParseSprintJson(json);
     REQUIRE(sprint.id   == 7);
     REQUIRE(sprint.name == "Some Other Sprint");
 }
 
 TEST_CASE("ParseSprintJson returns 'Unknown Sprint' for empty values array", "[jira]") {
-    JiraService svc;
-    SprintInfo sprint = svc.ParseSprintJson(R"({"values":[]})");
+    SprintInfo sprint = JiraService::ParseSprintJson(R"({"values":[]})");
     REQUIRE(sprint.name == "Unknown Sprint");
 }
 
 TEST_CASE("ParseSprintJson returns 'Unknown Sprint' when values key is absent", "[jira]") {
-    JiraService svc;
-    SprintInfo sprint = svc.ParseSprintJson("{}");
+    SprintInfo sprint = JiraService::ParseSprintJson("{}");
     REQUIRE(sprint.name == "Unknown Sprint");
 }
 
