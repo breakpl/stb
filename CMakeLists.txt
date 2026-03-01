@@ -25,7 +25,11 @@ set(SOURCES
     src/Config.cpp
 )
 
-add_executable(${PROJECT_NAME} MACOSX_BUNDLE ${SOURCES})
+add_executable(${PROJECT_NAME} WIN32 MACOSX_BUNDLE ${SOURCES})
+
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/Info.plist.in
+)
 
 # On macOS, compile SprintToolBoxApp.cpp as Objective-C++ to use Cocoa APIs
 if(APPLE)
