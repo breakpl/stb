@@ -1,7 +1,10 @@
 #!/bin/bash
-# package_win.sh – run this INSIDE MSYS2 MinGW64 shell
+# package_win.sh – run this INSIDE MSYS2 UCRT64 shell
 # Builds SprintToolBox and collects all required DLLs into a zip package.
-# Usage: from MSYS2 MinGW64 terminal:  bash /path/to/stb/package_win.sh
+# Usage: from MSYS2 UCRT64 terminal:  bash /path/to/stb/package_win.sh
+
+export MSYSTEM=UCRT64
+[ -f /etc/profile ] && source /etc/profile
 
 set -e
 
@@ -17,7 +20,7 @@ VERSION="1.0.0"
 echo "==> Building $APP_NAME (Release)..."
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
-cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release
 
 # ── 2. Stage directory ────────────────────────────────────────────────────────

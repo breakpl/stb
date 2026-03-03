@@ -31,6 +31,8 @@ wxString Config::FindConfigFile() const {
     wxFileName walker(wxStandardPaths::Get().GetExecutablePath());
     for (int i = 0; i < 7; i++) {
         searchPaths.Add(walker.GetPath() + "/SprintToolBox.ini");
+        if (walker.GetDirCount() == 0)
+            break;
         walker.RemoveLastDir();
     }
 

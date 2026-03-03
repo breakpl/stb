@@ -4,6 +4,7 @@
 #include <wx/wx.h>
 #include <wx/taskbar.h>
 #include <wx/timer.h>
+#include <wx/icon.h>
 #include <map>
 #include "JiraService.h"
 
@@ -46,6 +47,7 @@ private:
     
     wxString m_unixTimestamp;
     wxString m_zuluTimestamp;
+    wxIcon m_trayIconCurrent;   // keeps the HICON alive for the duration of each tray icon display
     ConverterDialog* m_converterDialog;
     TimeConverterDialog* m_timeConverterDialog;
     JiraService* m_jiraService;

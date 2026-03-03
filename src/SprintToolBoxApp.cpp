@@ -152,13 +152,14 @@ SprintToolBoxApp::SprintToolBoxApp()
     }
 #endif
 
-    // Initial icon and data
-    UpdateTrayIcon("...");
+    // Defer both the initial icon paint and the first sprint fetch until
+    // after the wx event loop has started.  Shell_NotifyIcon (Windows) and
+    // NSStatusBar (macOS) can silently fail when called this early.
     UpdateTimestamps();
-    // Defer the first sprint fetch so the wx event loop is already running
-    // when the (synchronous) HTTP call is made.  Without this, the call
-    // blocks the constructor and the tray icon freezes on "...".
-    CallAfter([this]() { UpdateSprint(); });
+    CallAfter([this]() {
+        UpdateTrayIcon("...");
+        UpdateSprint();
+    });
 }
 
 SprintToolBoxApp::~SprintToolBoxApp() {
@@ -289,127 +290,158 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
             targetItem.button.toolTip = nsTooltip;
         }
     }
-#else
-    // Windows: render ClearType text on an opaque background that matches
-    // the taskbar colour — exactly how the system clock is drawn.
-    int iconSize = ::GetSystemMetrics(SM_CXSMICON);
-    if (iconSize <= 0) iconSize = 16;
-
-    // Determine the exact taskbar background colour from Windows registry settings.
-    // Handles: dark/light theme, accent colour on taskbar, and transparency.
-    COLORREF bgColor = RGB(31, 31, 31); // dark theme default
-    COLORREF textColor = RGB(255, 255, 255);
+#elif defined(_WIN32)
+    // Windows: render text into a tray icon with proper alpha transparency
     {
-        DWORD systemLight = 0, colorPrevalence = 0, transparency = 0;
-        HKEY hPersonalize;
-        if (RegOpenKeyExW(HKEY_CURRENT_USER,
-                L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-                0, KEY_READ, &hPersonalize) == ERROR_SUCCESS) {
-            DWORD sz = sizeof(DWORD);
-            RegQueryValueExW(hPersonalize, L"SystemUsesLightTheme", NULL, NULL, (LPBYTE)&systemLight, &sz);
-            sz = sizeof(DWORD);
-            RegQueryValueExW(hPersonalize, L"ColorPrevalence", NULL, NULL, (LPBYTE)&colorPrevalence, &sz);
-            sz = sizeof(DWORD);
-            RegQueryValueExW(hPersonalize, L"EnableTransparency", NULL, NULL, (LPBYTE)&transparency, &sz);
-            RegCloseKey(hPersonalize);
-        }
+        wxString tooltip = "Sprint " + text;
+        if (daysPassed >= 0) tooltip += wxString::Format(" (Day %d)", daysPassed);
 
-        if (systemLight) {
-            // Light taskbar
-            bgColor = RGB(243, 243, 243);
-            textColor = RGB(0, 0, 0);
-        } else if (colorPrevalence) {
-            // Dark theme + accent colour on taskbar: read DWM accent
-            HKEY hDwm;
-            if (RegOpenKeyExW(HKEY_CURRENT_USER,
-                    L"Software\\Microsoft\\Windows\\DWM",
-                    0, KEY_READ, &hDwm) == ERROR_SUCCESS) {
-                DWORD abgr = 0, sz = sizeof(DWORD);
-                if (RegQueryValueExW(hDwm, L"AccentColor", NULL, NULL, (LPBYTE)&abgr, &sz) == ERROR_SUCCESS) {
-                    // AccentColor is stored as 0xAABBGGRR
-                    bgColor = RGB(abgr & 0xFF, (abgr >> 8) & 0xFF, (abgr >> 16) & 0xFF);
+        // Icon size (DPI-aware)
+        int iconSize = ::GetSystemMetrics(SM_CXSMICON);
+        if (iconSize < 16) iconSize = 16;
+
+        // Detect dark/light taskbar via registry
+        bool darkTaskbar = true;
+        {
+            HKEY hKey = nullptr;
+            if (::RegOpenKeyExW(HKEY_CURRENT_USER,
+                    L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                    0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+                DWORD value = 0, size = sizeof(value);
+                if (::RegQueryValueExW(hKey, L"SystemUsesLightTheme", nullptr,
+                        nullptr, (LPBYTE)&value, &size) == ERROR_SUCCESS) {
+                    darkTaskbar = (value == 0);
                 }
-                RegCloseKey(hDwm);
+                ::RegCloseKey(hKey);
             }
-            // Light or dark text based on accent luminance
-            int lum = (GetRValue(bgColor) * 299 + GetGValue(bgColor) * 587 + GetBValue(bgColor) * 114) / 1000;
-            textColor = (lum > 128) ? RGB(0, 0, 0) : RGB(255, 255, 255);
-        } else {
-            // Dark theme, no accent → standard dark taskbar
-            bgColor = RGB(31, 31, 31);
-            textColor = RGB(255, 255, 255);
+        }
+
+        BYTE fgR = darkTaskbar ? 255 : 0;
+        BYTE fgG = darkTaskbar ? 255 : 0;
+        BYTE fgB = darkTaskbar ? 255 : 0;
+
+        // --- Step 1: Render WHITE text on BLACK background into a temp DIB ---
+        // GDI ClearType/antialiasing will produce shades of grey which we use
+        // as the coverage (alpha) mask.
+        BITMAPINFO bmi = {};
+        bmi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
+        bmi.bmiHeader.biWidth       = iconSize;
+        bmi.bmiHeader.biHeight      = -iconSize; // top-down
+        bmi.bmiHeader.biPlanes      = 1;
+        bmi.bmiHeader.biBitCount    = 32;
+        bmi.bmiHeader.biCompression = BI_RGB;
+
+        void* bits = nullptr;
+        HDC screenDC = ::GetDC(nullptr);
+        HBITMAP hBmp = ::CreateDIBSection(screenDC, &bmi, DIB_RGB_COLORS, &bits, nullptr, 0);
+        HDC memDC = ::CreateCompatibleDC(screenDC);
+        HBITMAP oldBmp = (HBITMAP)::SelectObject(memDC, hBmp);
+
+        // Black background
+        memset(bits, 0, iconSize * iconSize * 4);
+
+        // Font: bold, sized to fit
+        int textLen = (int)text.length();
+        int fontSize;
+        if (textLen <= 2)      fontSize = iconSize - 2;
+        else if (textLen <= 3) fontSize = iconSize - 4;
+        else                   fontSize = iconSize - 6;
+        if (fontSize < 6) fontSize = 6;
+
+        HFONT hFont = ::CreateFontW(
+            -fontSize, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
+            ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+        HFONT oldFont = (HFONT)::SelectObject(memDC, hFont);
+
+        // Draw WHITE text so any pixel brightness = coverage
+        ::SetBkMode(memDC, TRANSPARENT);
+        ::SetTextColor(memDC, RGB(255, 255, 255));
+
+        RECT rc = { 0, 0, iconSize, iconSize };
+        ::DrawTextW(memDC, text.wc_str(), -1, &rc,
+                    DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
+
+        ::SelectObject(memDC, oldFont);
+        ::DeleteObject(hFont);
+        ::SelectObject(memDC, oldBmp);
+        ::DeleteDC(memDC);
+        ::ReleaseDC(nullptr, screenDC);
+
+        // --- Step 2: Convert to premultiplied BGRA ---
+        // For each pixel, the max of (R,G,B) written by GDI = coverage/alpha.
+        // Then set the color channels to target color * alpha / 255.
+        BYTE* pixel = (BYTE*)bits;
+        for (int i = 0; i < iconSize * iconSize; i++, pixel += 4) {
+            BYTE b = pixel[0], g = pixel[1], r = pixel[2];
+            // Use max channel as alpha (handles ClearType sub-pixel variation)
+            BYTE alpha = r;
+            if (g > alpha) alpha = g;
+            if (b > alpha) alpha = b;
+
+            if (alpha > 0) {
+                // Premultiplied alpha: channel = targetColor * alpha / 255
+                pixel[0] = (BYTE)(fgB * alpha / 255); // B
+                pixel[1] = (BYTE)(fgG * alpha / 255); // G
+                pixel[2] = (BYTE)(fgR * alpha / 255); // R
+                pixel[3] = alpha;                      // A
+            }
+            // else: stays (0,0,0,0) = fully transparent
+        }
+
+        // --- Step 3: Create HICON ---
+        HBITMAP hMask = ::CreateBitmap(iconSize, iconSize, 1, 1, nullptr);
+        {
+            HDC maskDC = ::CreateCompatibleDC(nullptr);
+            HBITMAP oldMask = (HBITMAP)::SelectObject(maskDC, hMask);
+            RECT mr = { 0, 0, iconSize, iconSize };
+            ::FillRect(maskDC, &mr, (HBRUSH)::GetStockObject(BLACK_BRUSH));
+            ::SelectObject(maskDC, oldMask);
+            ::DeleteDC(maskDC);
+        }
+
+        ICONINFO ii = {};
+        ii.fIcon    = TRUE;
+        ii.hbmMask  = hMask;
+        ii.hbmColor = hBmp;
+        HICON hIcon = ::CreateIconIndirect(&ii);
+
+        ::DeleteObject(hMask);
+        ::DeleteObject(hBmp);
+
+        if (hIcon) {
+            wxIcon icon;
+            icon.CreateFromHICON((WXHICON)hIcon);
+            m_trayIconCurrent = icon;
+            SetIcon(m_trayIconCurrent, tooltip);
         }
     }
+#else
+    // Linux/generic fallback: simple wxWidgets bitmap icon
+    {
+        wxString tooltip = "Sprint " + text;
+        if (daysPassed >= 0) tooltip += wxString::Format(" (Day %d)", daysPassed);
 
-    BITMAPINFO bmi = {};
-    bmi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
-    bmi.bmiHeader.biWidth       = iconSize;
-    bmi.bmiHeader.biHeight      = -iconSize; // top-down
-    bmi.bmiHeader.biPlanes      = 1;
-    bmi.bmiHeader.biBitCount    = 32;
-    bmi.bmiHeader.biCompression = BI_RGB;
+        const int iconSize = 22;
+        wxBitmap bmp(iconSize, iconSize, 32);
+        wxMemoryDC dc;
+        dc.SelectObject(bmp);
+        dc.SetBackground(*wxTRANSPARENT_BRUSH);
+        dc.Clear();
 
-    DWORD* pixels = nullptr;
-    HDC screenDC = ::GetDC(NULL);
-    HBITMAP hBmp = ::CreateDIBSection(screenDC, &bmi, DIB_RGB_COLORS, (void**)&pixels, NULL, 0);
-    HDC memDC = ::CreateCompatibleDC(screenDC);
-    HBITMAP oldBmp = (HBITMAP)::SelectObject(memDC, hBmp);
+        dc.SetFont(wxFont(wxFontInfo(8).Bold().FaceName("Monospace")));
+        dc.SetTextForeground(*wxWHITE);
+        wxSize textSize = dc.GetTextExtent(text);
+        int x = (iconSize - textSize.GetWidth()) / 2;
+        int y = (iconSize - textSize.GetHeight()) / 2;
+        dc.DrawText(text, x, y);
 
-    // Fill with the exact taskbar background colour
-    HBRUSH hBgBrush = ::CreateSolidBrush(bgColor);
-    RECT fillRc = { 0, 0, iconSize, iconSize };
-    ::FillRect(memDC, &fillRc, hBgBrush);
-    ::DeleteObject(hBgBrush);
-
-    // Draw crisp pixel-aliased text — at 16×16 ClearType just blurs things.
-    // NONANTIALIASED_QUALITY gives sharp pixel edges like bitmap fonts.
-    // Use pixel height directly for precise control at small sizes.
-    int fh = (text.Length() <= 2) ? -(iconSize - 3) : -(iconSize - 5);
-    HFONT hFont = ::CreateFontW(fh, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
-        NONANTIALIASED_QUALITY, DEFAULT_PITCH, L"Segoe UI");
-    HFONT oldFont = (HFONT)::SelectObject(memDC, hFont);
-    ::SetBkMode(memDC, TRANSPARENT);
-    ::SetTextColor(memDC, textColor);
-    std::wstring wtext = text.ToStdWstring();
-    RECT rc = { 0, 0, iconSize, iconSize };
-    ::DrawTextW(memDC, wtext.c_str(), -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    ::SelectObject(memDC, oldFont);
-    ::DeleteObject(hFont);
-
-    // Set alpha=255 for all pixels (fully opaque icon, background blends naturally)
-    for (int i = 0; i < iconSize * iconSize; i++)
-        pixels[i] |= 0xFF000000;
-
-    ::SelectObject(memDC, oldBmp);
-    ::DeleteDC(memDC);
-
-    // Mask: all zeros = use color bitmap always
-    HBITMAP hMask = ::CreateBitmap(iconSize, iconSize, 1, 1, NULL);
-    HDC maskDC = ::CreateCompatibleDC(NULL);
-    HBITMAP oldMask = (HBITMAP)::SelectObject(maskDC, hMask);
-    ::PatBlt(maskDC, 0, 0, iconSize, iconSize, BLACKNESS);
-    ::SelectObject(maskDC, oldMask);
-    ::DeleteDC(maskDC);
-
-    ICONINFO ii = {};
-    ii.fIcon    = TRUE;
-    ii.hbmMask  = hMask;
-    ii.hbmColor = hBmp;
-    HICON hIcon = ::CreateIconIndirect(&ii);
-
-    ::DeleteObject(hBmp);
-    ::DeleteObject(hMask);
-    ::ReleaseDC(NULL, screenDC);
-
-    wxIcon icon;
-    icon.CreateFromHICON((WXHICON)hIcon);
-
-    wxString tooltip = "Sprint " + text;
-    if (daysPassed >= 0) {
-        tooltip += wxString::Format(" (Day %d)", daysPassed);
+        dc.SelectObject(wxNullBitmap);
+        wxIcon icon;
+        icon.CopyFromBitmap(bmp);
+        m_trayIconCurrent = icon;
+        SetIcon(m_trayIconCurrent, tooltip);
     }
-    SetIcon(icon, tooltip);
 #endif
 }
 
