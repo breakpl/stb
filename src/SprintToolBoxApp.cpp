@@ -73,6 +73,8 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_TIMER(ID_RETRY_TIMER,  SprintToolBoxApp::OnRetryTimer)
     EVT_TIMER(ID_CONFIG_WATCH_TIMER, SprintToolBoxApp::OnConfigWatchTimer)
     EVT_MENU_RANGE(ID_DYNAMIC_MENU_START, ID_DYNAMIC_MENU_START + 999, SprintToolBoxApp::OnDynamicMenuClick)
+    EVT_TASKBAR_LEFT_UP(SprintToolBoxApp::OnTaskBarClick)
+    EVT_TASKBAR_RIGHT_UP(SprintToolBoxApp::OnTaskBarClick)
 wxEND_EVENT_TABLE()
 
 SprintToolBoxApp::SprintToolBoxApp() 
@@ -457,6 +459,48 @@ void SprintToolBoxApp::UpdateTimestamps() {
 }
 
 wxMenu* SprintToolBoxApp::CreatePopupMenu() {
+    // Return nullptr – we handle the popup manually via OnTaskBarClick()
+    // so that we can (a) show the menu on left-click too, and (b) apply
+    // the Windows SetForegroundWindow fix reliably (KB Q135788).
+    return nullptr;
+}
+
+void SprintToolBoxApp::OnTaskBarClick(wxTaskBarIconEvent& WXUNUSED(event)) {
+    ShowContextMenu();
+}
+
+void SprintToolBoxApp::ShowContextMenu() {
+    wxMenu* menu = BuildPopupMenu();
+    if (!menu) return;
+
+#ifdef _WIN32
+    // KB Q135788 – TrackPopupMenu requires the owner window to be the
+    // foreground window.  wxTaskBarIcon::PopupMenu() calls
+    // SetForegroundWindow internally, but that API can silently fail if
+    // another thread/process owns the foreground lock.  Temporarily
+    // attaching our thread input to the foreground thread lets
+    // SetForegroundWindow succeed reliably.
+    HWND fgWnd = ::GetForegroundWindow();
+    DWORD fgThread = fgWnd ? ::GetWindowThreadProcessId(fgWnd, NULL) : 0;
+    DWORD myThread = ::GetCurrentThreadId();
+    bool attached = false;
+    if (fgThread && fgThread != myThread) {
+        attached = (::AttachThreadInput(fgThread, myThread, TRUE) != 0);
+    }
+#endif
+
+    PopupMenu(menu);
+
+#ifdef _WIN32
+    if (attached) {
+        ::AttachThreadInput(fgThread, myThread, FALSE);
+    }
+#endif
+
+    delete menu;
+}
+
+wxMenu* SprintToolBoxApp::BuildPopupMenu() {
     // Update timestamps before showing menu
     UpdateTimestamps();
     

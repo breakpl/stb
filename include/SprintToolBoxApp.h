@@ -21,7 +21,7 @@ public:
     SprintToolBoxApp();
     virtual ~SprintToolBoxApp();
     
-    // Create the popup menu
+    // Create the popup menu (returns nullptr – we handle popup via OnTaskBarClick)
     virtual wxMenu* CreatePopupMenu() override;
     
     // Public for theme change observer access
@@ -30,6 +30,10 @@ public:
     int m_currentDaysPassed;
     
 private:
+    void OnTaskBarClick(wxTaskBarIconEvent& event);
+    void ShowContextMenu();
+    wxMenu* BuildPopupMenu();
+
     void OnCopyUnixTimestamp(wxCommandEvent& event);
     void OnCopyZuluTimestamp(wxCommandEvent& event);
     void OnOpenConverter(wxCommandEvent& event);
