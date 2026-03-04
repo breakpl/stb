@@ -128,12 +128,33 @@ build_for_arch() {
 
             # Process Homebrew libraries (check both /usr/local and /opt/homebrew)
             if [[ "$DEP" == /usr/local/* ]] || [[ "$DEP" == /opt/homebrew/* ]]; then
-                # Recurse with the ORIGINAL path (not realpath) so the bundled
-                # filename matches the reference name (e.g. libzstd.1.dylib, not
-                # libzstd.1.5.7.dylib which is the realpath-resolved version).
                 bundle_dylib "$DEP"
-                # Rewrite the reference inside the copy we are currently fixing
                 install_name_tool -change "$DEP" "@executable_path/../Frameworks/$DEP_NAME" "$DEST"
+
+            elif [[ "$DEP" == @rpath/* ]] || [[ "$DEP" == @loader_path/* ]]; then
+                # Resolve @rpath / @loader_path references – these are common
+                # for transitive deps (e.g. libsharpyuv via libwebp).
+                local RESOLVED=""
+                # Try Homebrew lib dir first
+                if [ -e "$HOMEBREW_PREFIX/lib/$DEP_NAME" ]; then
+                    RESOLVED="$HOMEBREW_PREFIX/lib/$DEP_NAME"
+                else
+                    # Search Homebrew opt directories
+                    RESOLVED="$(find "$HOMEBREW_PREFIX/opt" -name "$DEP_NAME" \
+                                -maxdepth 5 2>/dev/null | head -1)"
+                fi
+                # Also try relative to the source file's real location
+                if [ -z "$RESOLVED" ]; then
+                    local SRC_DIR
+                    SRC_DIR="$(dirname "$REAL_SRC")"
+                    if [ -e "$SRC_DIR/$DEP_NAME" ]; then
+                        RESOLVED="$SRC_DIR/$DEP_NAME"
+                    fi
+                fi
+                if [ -n "$RESOLVED" ] && [ -e "$RESOLVED" ]; then
+                    bundle_dylib "$RESOLVED"
+                    install_name_tool -change "$DEP" "@executable_path/../Frameworks/$DEP_NAME" "$DEST"
+                fi
             fi
         done < <(otool -L "$REAL_SRC" | tail -n +2)
     }
@@ -159,10 +180,9 @@ build_for_arch() {
                 bundle_dylib "$DEP"
                 install_name_tool -change "$DEP" "@executable_path/../Frameworks/$DEP_NAME" "$BINARY"
 
-            elif [[ "$DEP" == "@executable_path/../Frameworks/"* ]]; then
-                # Reference already correct – just ensure the file is present
+            elif [[ "$DEP" == "@executable_path/../Frameworks/"* ]] || [[ "$DEP" == @rpath/* ]] || [[ "$DEP" == @loader_path/* ]]; then
+                # Bundle-relative or rpath/loader_path reference – ensure the file is present
                 if [ ! -f "$FRAMEWORKS/$DEP_NAME" ]; then
-                    # Try the Homebrew lib dir for this architecture
                     local FOUND="$HOMEBREW_PREFIX/lib/$DEP_NAME"
                     if [ ! -e "$FOUND" ]; then
                         FOUND="$(find "$HOMEBREW_PREFIX/opt" -name "$DEP_NAME" \
@@ -174,12 +194,48 @@ build_for_arch() {
                         echo "  WARNING: cannot find source for $DEP_NAME" >&2
                     fi
                 fi
+                # Rewrite to @executable_path if not already
+                if [[ "$DEP" != "@executable_path/../Frameworks/"* ]]; then
+                    install_name_tool -change "$DEP" "@executable_path/../Frameworks/$DEP_NAME" "$BINARY"
+                fi
             fi
         done < <(otool -L "$BINARY" | tail -n +2)
     }
 
     local BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
     fix_binary "$BINARY"
+
+    # Also fix @rpath references inside already-bundled dylibs
+    echo "==> Fixing references in bundled dylibs..."
+    for DYLIB in "$FRAMEWORKS"/*.dylib; do
+        [ -f "$DYLIB" ] || continue
+        local DYLIB_NAME
+        DYLIB_NAME="$(basename "$DYLIB")"
+        while IFS= read -r RAW_LINE; do
+            local DEP
+            DEP="$(echo "$RAW_LINE" | awk '{print $1}')"
+            [ -z "$DEP" ] && continue
+            local DEP_NAME
+            DEP_NAME="$(basename "$DEP")"
+            [ "$DEP_NAME" = "$DYLIB_NAME" ] && continue
+
+            if [[ "$DEP" == @rpath/* ]] || [[ "$DEP" == @loader_path/* ]]; then
+                # Ensure the dependency is bundled
+                if [ ! -f "$FRAMEWORKS/$DEP_NAME" ]; then
+                    local FOUND="$HOMEBREW_PREFIX/lib/$DEP_NAME"
+                    if [ ! -e "$FOUND" ]; then
+                        FOUND="$(find "$HOMEBREW_PREFIX/opt" -name "$DEP_NAME" \
+                                 -maxdepth 5 2>/dev/null | head -1)"
+                    fi
+                    if [ -e "$FOUND" ]; then
+                        bundle_dylib "$FOUND"
+                    fi
+                fi
+                # Rewrite the reference
+                install_name_tool -change "$DEP" "@executable_path/../Frameworks/$DEP_NAME" "$DYLIB"
+            fi
+        done < <(otool -L "$DYLIB" | tail -n +2)
+    done
 
     # ── 4. Verify all @executable_path refs are satisfied (binary + all dylibs) ───
     echo "==> Verifying bundle..."
@@ -189,7 +245,7 @@ build_for_arch() {
         while IFS= read -r RAW_LINE; do
             local DEP
             DEP="$(echo "$RAW_LINE" | awk '{print $1}')"
-            if [[ "$DEP" == "@executable_path/../Frameworks/"* ]]; then
+            if [[ "$DEP" == "@executable_path/../Frameworks/"* ]] || [[ "$DEP" == @rpath/* ]] || [[ "$DEP" == @loader_path/* ]]; then
                 local NEED
                 NEED="$(basename "$DEP")"
                 if [ ! -f "$FRAMEWORKS/$NEED" ]; then
