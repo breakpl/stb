@@ -209,6 +209,25 @@ build_for_arch() {
     fi
     echo "  OK – all references satisfied."
 
+    # ── 4.5. Code sign the app and all bundled libraries ──────────────────────────
+    echo "==> Code signing..."
+    # Sign all dylibs first
+    for DYLIB in "$FRAMEWORKS"/*.dylib; do
+        [ -f "$DYLIB" ] || continue
+        codesign --force --sign - --timestamp=none --options=runtime \
+                 --entitlements "$SCRIPT_DIR/entitlements.plist" "$DYLIB"
+    done
+    
+    # Sign the main executable
+    codesign --force --sign - --timestamp=none --options=runtime \
+             --entitlements "$SCRIPT_DIR/entitlements.plist" "$BINARY"
+    
+    # Sign the entire app bundle
+    codesign --force --deep --sign - --timestamp=none --options=runtime \
+             --entitlements "$SCRIPT_DIR/entitlements.plist" "$APP_BUNDLE"
+    
+    echo "  OK – app signed."
+
     # ── 5. Create DMG ─────────────────────────────────────────────────────────────
     echo "==> Creating DMG..."
     mkdir -p "$DIST_DIR"

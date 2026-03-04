@@ -167,8 +167,6 @@ SprintToolBoxApp::SprintToolBoxApp()
 SprintToolBoxApp::~SprintToolBoxApp() {
 #ifdef __WXOSX__
     if (m_statusItem) {
-        // Don't remove the status item, just release our reference to it
-        // wxTaskBarIcon will handle removing it
         (void)CFBridgingRelease(m_statusItem);
         m_statusItem = nullptr;
     }
@@ -229,8 +227,7 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
     m_currentDaysPassed = daysPassed;
     
 #ifdef __WXOSX__
-    // On macOS, use NSStatusItem's attributedTitle for native text rendering
-    // (like Qt does) instead of drawing text into a bitmap image.
+    // On macOS, use NSStatusItem's attributedTitle for native text rendering.
     // This gives automatic dark/light mode adaptation and proper font rendering.
     @autoreleasepool {
         // Create tooltip with sprint info
@@ -241,17 +238,18 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
         
         // On first call, we need SetIcon to let wxTaskBarIcon create its NSStatusItem
         if (!m_statusItem) {
-            // Create a tiny transparent image just to bootstrap the status item
-            NSImage* dummyImage = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
-            [dummyImage setTemplate:YES];
-            wxBitmap bitmap;
-            WXImage wxImg = (WXImage)dummyImage;
-            bitmap = wxBitmap(wxImg);
+            // Create a tiny 1x1 transparent wxBitmap to bootstrap the status item
+            wxBitmap bmp(1, 1, 32);
+            wxMemoryDC dc;
+            dc.SelectObject(bmp);
+            dc.SetBackground(*wxTRANSPARENT_BRUSH);
+            dc.Clear();
+            dc.SelectObject(wxNullBitmap);
             wxIcon icon;
-            icon.CopyFromBitmap(bitmap);
+            icon.CopyFromBitmap(bmp);
             SetIcon(icon, tooltip);
             
-            // Find our status item using KVC (statusItems is a private API)
+            // Find our status item by tooltip using KVC
             NSString* nsTooltip = [NSString stringWithUTF8String:tooltip.utf8_str()];
             NSArray* items = [[NSStatusBar systemStatusBar] valueForKey:@"statusItems"];
             for (NSStatusItem* item in items) {
@@ -459,10 +457,16 @@ void SprintToolBoxApp::UpdateTimestamps() {
 }
 
 wxMenu* SprintToolBoxApp::CreatePopupMenu() {
-    // Return nullptr – we handle the popup manually via OnTaskBarClick()
-    // so that we can (a) show the menu on left-click too, and (b) apply
-    // the Windows SetForegroundWindow fix reliably (KB Q135788).
+#ifdef __WXOSX__
+    // On macOS, wxTaskBarIcon calls CreatePopupMenu() internally when the
+    // status item is clicked.  EVT_TASKBAR_LEFT_UP / RIGHT_UP are NOT fired,
+    // so we must return the menu here for it to appear.
+    return BuildPopupMenu();
+#else
+    // On Windows / Linux we handle the popup manually via OnTaskBarClick()
+    // so that we can apply the SetForegroundWindow fix (KB Q135788).
     return nullptr;
+#endif
 }
 
 void SprintToolBoxApp::OnTaskBarClick(wxTaskBarIconEvent& WXUNUSED(event)) {
