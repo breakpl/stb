@@ -210,20 +210,24 @@ build_for_arch() {
     echo "  OK – all references satisfied."
 
     # ── 4.5. Code sign the app and all bundled libraries ──────────────────────────
+    # Ad-hoc signing (--sign -) is needed because install_name_tool invalidates
+    # the linker's original signature.  We intentionally omit --options=runtime
+    # because hardened-runtime + ad-hoc is rejected on machines other than the
+    # build host.  The entitlements file is still applied so the app can load
+    # its bundled unsigned dylibs.
     echo "==> Code signing..."
     # Sign all dylibs first
     for DYLIB in "$FRAMEWORKS"/*.dylib; do
         [ -f "$DYLIB" ] || continue
-        codesign --force --sign - --timestamp=none --options=runtime \
-                 --entitlements "$SCRIPT_DIR/entitlements.plist" "$DYLIB"
+        codesign --force --sign - --timestamp=none "$DYLIB"
     done
     
     # Sign the main executable
-    codesign --force --sign - --timestamp=none --options=runtime \
+    codesign --force --sign - --timestamp=none \
              --entitlements "$SCRIPT_DIR/entitlements.plist" "$BINARY"
     
     # Sign the entire app bundle
-    codesign --force --deep --sign - --timestamp=none --options=runtime \
+    codesign --force --deep --sign - --timestamp=none \
              --entitlements "$SCRIPT_DIR/entitlements.plist" "$APP_BUNDLE"
     
     echo "  OK – app signed."
