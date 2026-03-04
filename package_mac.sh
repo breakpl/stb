@@ -233,11 +233,21 @@ build_for_arch() {
     mkdir -p "$DIST_DIR"
     local DMG="$DIST_DIR/${APP_NAME}-${VERSION}-mac-${ARCH_NAME}.dmg"
 
+    # Stage DMG contents: app bundle + install script
+    local STAGE_DIR="$BUILD_DIR/dmg-stage"
+    rm -rf "$STAGE_DIR"
+    mkdir -p "$STAGE_DIR"
+    cp -R "$APP_BUNDLE" "$STAGE_DIR/"
+    cp "$SCRIPT_DIR/install_mac.sh" "$STAGE_DIR/install.command"
+    chmod +x "$STAGE_DIR/install.command"
+
     hdiutil create \
         -volname "$APP_NAME" \
-        -srcfolder "$APP_BUNDLE" \
+        -srcfolder "$STAGE_DIR" \
         -ov -format UDZO \
         "$DMG"
+
+    rm -rf "$STAGE_DIR"
 
     echo ""
     echo "==> Done: $DMG"
