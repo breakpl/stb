@@ -1,0 +1,93 @@
+name: Build SprintToolBox
+
+on:
+  push:
+    branches: [ main, master, pre_m ]
+  pull_request:
+    branches: [ main, master, pre_m ]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [arm64, intel]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies (ARM64)
+        if: matrix.arch == 'arm64'
+        run: |
+          brew install wxwidgets curl
+      
+      - name: Install dependencies (Intel)
+        if: matrix.arch == 'intel'
+        run: |
+          arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
+          arch -x86_64 /usr/local/bin/brew install wxwidgets curl
+      
+      - name: Build package
+        run: ./package_mac.sh ${{ matrix.arch }}
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SprintToolBox-macOS-${{ matrix.arch }}
+          path: dist/mac/*.dmg
+          retention-days: 30
+
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-wxWidgets
+            mingw-w64-ucrt-x86_64-curl
+            zip
+      
+      - name: Build package
+        run: bash package_win.sh
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SprintToolBox-Windows
+          path: dist/win/*.zip
+          retention-days: 30
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            libwxgtk3.2-dev \
+            libcurl4-openssl-dev \
+            dpkg-dev
+      
+      - name: Build package
+        run: ./package_linux.sh
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SprintToolBox-Linux
+          path: dist/linux/*.deb
+          retention-days: 30

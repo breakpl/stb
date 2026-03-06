@@ -1,13 +1,25 @@
-HTTP/1.1 200 OK
-Date: Fri, 06 Mar 2026 06:34:34 GMT
-Content-Type: text/html;charset=utf-8
-Transfer-Encoding: chunked
-Connection: keep-alive
-Cache-Control: max-age=0, no-cache, no-store, must-revalidate
-Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
-X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
-Last-Modified: Fri, 01 Feb 1980 00:00:00 GMT
-ETag: "a1d73061"
-Vary: Accept-Encoding
+HTTP/2 200 
+cache-control: max-age=300
+content-security-policy: default-src 'none'; style-src 'unsafe-inline'; sandbox
+content-type: text/plain; charset=utf-8
+etag: "ef13f83951aa916373016873f786f438ef72afe1931299118012c99998300bd5"
+strict-transport-security: max-age=31536000
+x-content-type-options: nosniff
+x-frame-options: deny
+x-xss-protection: 1; mode=block
+x-github-request-id: 71A6:F30E7:43D7F90:48FC826:699A9DDB
+accept-ranges: bytes
+date: Fri, 06 Mar 2026 20:24:35 GMT
+via: 1.1 varnish
+x-served-by: cache-fra-eddf8230040-FRA
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1772828675.257737,VS0,VE2
+vary: Authorization,Accept-Encoding
+access-control-allow-origin: *
+cross-origin-resource-policy: cross-origin
+x-fastly-request-id: 56c4ac2933f6bfc5ed767fd6211592b923be9d10
+expires: Fri, 06 Mar 2026 20:29:35 GMT
+source-age: 50
+content-length: 32814
 
