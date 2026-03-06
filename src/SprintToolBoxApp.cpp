@@ -72,7 +72,11 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_TIMER(ID_CONFIG_WATCH_TIMER, SprintToolBoxApp::OnConfigWatchTimer)
     EVT_MENU_RANGE(ID_DYNAMIC_MENU_START, ID_DYNAMIC_MENU_START + 999, SprintToolBoxApp::OnDynamicMenuClick)
     EVT_TASKBAR_LEFT_UP(SprintToolBoxApp::OnTaskBarClick)
+    EVT_TASKBAR_LEFT_DOWN(SprintToolBoxApp::OnTaskBarClick)
+#ifdef _WIN32
     EVT_TASKBAR_RIGHT_UP(SprintToolBoxApp::OnTaskBarClick)
+    EVT_TASKBAR_RIGHT_DOWN(SprintToolBoxApp::OnTaskBarClick)
+#endif
 wxEND_EVENT_TABLE()
 
 SprintToolBoxApp::SprintToolBoxApp() 
@@ -460,15 +464,28 @@ wxMenu* SprintToolBoxApp::CreatePopupMenu() {
     // status item is clicked.  EVT_TASKBAR_LEFT_UP / RIGHT_UP are NOT fired,
     // so we must return the menu here for it to appear.
     return BuildPopupMenu();
+#elif defined(__WXGTK__)
+    // On Linux/GTK, CreatePopupMenu() is called for right-click by default
+    return BuildPopupMenu();
 #else
-    // On Windows / Linux we handle the popup manually via OnTaskBarClick()
+    // On Windows we handle the popup manually via OnTaskBarClick()
     // so that we can apply the SetForegroundWindow fix (KB Q135788).
     return nullptr;
 #endif
 }
 
-void SprintToolBoxApp::OnTaskBarClick(wxTaskBarIconEvent& WXUNUSED(event)) {
+void SprintToolBoxApp::OnTaskBarClick(wxTaskBarIconEvent& event) {
+#ifdef _WIN32
+    // On Windows, manually show the menu with foreground thread fix
     ShowContextMenu();
+#elif defined(__WXGTK__)
+    // On Linux/GTK, only handle left-click here (CreatePopupMenu handles right-click)
+    if (event.GetEventType() == wxEVT_TASKBAR_LEFT_UP || 
+        event.GetEventType() == wxEVT_TASKBAR_LEFT_DOWN) {
+        ShowContextMenu();
+    }
+#endif
+    // On macOS, CreatePopupMenu() handles everything
 }
 
 void SprintToolBoxApp::ShowContextMenu() {
