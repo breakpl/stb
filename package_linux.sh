@@ -61,13 +61,7 @@ EOF
 # ── 3. DEBIAN/control ─────────────────────────────────────────────────────────
 INSTALLED_KB=$(du -sk "$DEB_ROOT/usr" | cut -f1)
 
-# Detect available wxWidgets package name (3.2 vs 3.0)
-if dpkg -l libwxgtk3.2-0v5 &>/dev/null || apt-cache show libwxgtk3.2-0v5 &>/dev/null 2>&1; then
-    WX_DEP="libwxgtk3.2-0v5"
-else
-    WX_DEP="libwxgtk3.0-gtk3-0v5"
-fi
-
+# Use flexible dependencies with alternatives (3.2 or 3.0)
 cat > "$DEB_CTRL/control" <<EOF
 Package: $APP_NAME_LOWER
 Version: $VERSION
@@ -75,7 +69,7 @@ Section: utils
 Priority: optional
 Architecture: $ARCH
 Installed-Size: $INSTALLED_KB
-Depends: $WX_DEP, libcurl4
+Depends: libwxgtk3.2-1 | libwxgtk3.2-0v5 | libwxgtk3.0-gtk3-0v5, libcurl4
 Maintainer: SprintToolBox
 Description: Sprint tracking tray utility
  A tray icon application for tracking JIRA sprint progress,
