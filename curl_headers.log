@@ -1,0 +1,13 @@
+HTTP/1.1 200 OK
+Date: Fri, 06 Mar 2026 06:34:34 GMT
+Content-Type: text/html;charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+Cache-Control: max-age=0, no-cache, no-store, must-revalidate
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Last-Modified: Fri, 01 Feb 1980 00:00:00 GMT
+ETag: "a1d73061"
+Vary: Accept-Encoding
+

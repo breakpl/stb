@@ -4,6 +4,13 @@ APIToken=YourJiraTokenHere
 BaseURL=https://dt-rnd.atlassian.net
 BoardID=2355
 
+[Display]
+# Toggle visibility of menu items (1/true/yes = show, 0/false/no = hide)
+ShowUnixTimestamp=true
+ShowZuluTimestamp=true
+ShowTimeConverter=true
+ShowHexDecConverter=true
+
 [MainMenu]
 # Dynamic menu items (max 20 items total)
 # Format: name=url OR name=submenu:SectionName OR ---=separator

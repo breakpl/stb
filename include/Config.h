@@ -42,6 +42,12 @@ public:
     wxString GetJiraBaseURL() const { return m_jiraBaseURL; }
     int GetJiraBoardID() const { return m_jiraBoardID; }
     
+    // Menu visibility options
+    bool GetShowUnixTimestamp() const { return m_showUnixTimestamp; }
+    bool GetShowZuluTimestamp() const { return m_showZuluTimestamp; }
+    bool GetShowTimeConverter() const { return m_showTimeConverter; }
+    bool GetShowHexDecConverter() const { return m_showHexDecConverter; }
+    
     // Menu items
     std::vector<MenuItem> GetMainMenuItems() const { return m_mainMenuItems; }
     std::map<wxString, std::vector<MenuItem>> GetSubMenus() const { return m_subMenus; }
@@ -61,6 +67,10 @@ private:
     wxString m_jiraToken;
     wxString m_jiraBaseURL;
     int m_jiraBoardID;
+    bool m_showUnixTimestamp;
+    bool m_showZuluTimestamp;
+    bool m_showTimeConverter;
+    bool m_showHexDecConverter;
     std::vector<MenuItem> m_mainMenuItems;
     std::map<wxString, std::vector<MenuItem>> m_subMenus;
 };

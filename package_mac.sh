@@ -81,11 +81,10 @@ build_for_arch() {
     # ── 2. Copy SprintToolBox.ini-example into the bundle Resources ───────────────
     local RESOURCES="$APP_BUNDLE/Contents/Resources"
     mkdir -p "$RESOURCES"
+    # Copy SprintToolBox.ini-example as the bundled config (fallback)
+    cp "$SCRIPT_DIR/SprintToolBox.ini-example" "$RESOURCES/SprintToolBox.ini"
+    # Also ship the -example file for reference
     cp "$SCRIPT_DIR/SprintToolBox.ini-example" "$RESOURCES/SprintToolBox.ini-example"
-    # If a real SprintToolBox.ini exists alongside the script, ship it too
-    if [ -f "$SCRIPT_DIR/SprintToolBox.ini" ]; then
-        cp "$SCRIPT_DIR/SprintToolBox.ini" "$RESOURCES/SprintToolBox.ini"
-    fi
 
     # ── 3. Bundle dylibs ──────────────────────────────────────────────────────────
     echo "==> Bundling dylibs..."

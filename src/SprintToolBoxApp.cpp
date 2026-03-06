@@ -39,8 +39,6 @@ static const int ICON_FONT_SIZE_MAC = 14;  // SF Mono Regular – sized for attr
 static const int SPRINT_UPDATE_INTERVAL_MS  = 300000; // 5 minutes
 static const int NETWORK_RETRY_INTERVAL_MS  = 20000;  // 20 s  (window: 2 min)
 static const int NETWORK_RETRY_MAX_COUNT    = 6;      // 6 × 20 s = 2 min
-static const int AUTH_RETRY_INTERVAL_MS     = 30000;  // 30 s  (window: 5 min)
-static const int AUTH_RETRY_MAX_COUNT       = 10;     // 10 × 30 s = 5 min
 
 #ifdef _WIN32
 // ── Windows theme-change observer ────────────────────────────────────────────
@@ -513,20 +511,33 @@ wxMenu* SprintToolBoxApp::BuildPopupMenu() {
     // Clear previous URL mappings
     m_menuUrlMap.clear();
     
-    // Timestamp menu items
-    menu->Append(ID_COPY_UNIX, "Unix: " + m_unixTimestamp);
-    menu->Append(ID_COPY_ZULU, "Zulu: " + m_zuluTimestamp);
-    menu->Append(ID_OPEN_TIME_CONVERTER, "More...");
+    // Timestamp menu items (configurable)
+    bool hasTimestampItems = false;
+    if (m_config->GetShowUnixTimestamp()) {
+        menu->Append(ID_COPY_UNIX, "Unix: " + m_unixTimestamp);
+        hasTimestampItems = true;
+    }
+    if (m_config->GetShowZuluTimestamp()) {
+        menu->Append(ID_COPY_ZULU, "Zulu: " + m_zuluTimestamp);
+        hasTimestampItems = true;
+    }
+    if (m_config->GetShowTimeConverter()) {
+        menu->Append(ID_OPEN_TIME_CONVERTER, "More...");
+        hasTimestampItems = true;
+    }
 
-    menu->AppendSeparator();
-
-    // Converters
-    menu->Append(ID_OPEN_CONVERTER, "Hex/Dec Converter");
+    // Converters (configurable)
+    bool hasConverters = false;
+    if (m_config->GetShowHexDecConverter()) {
+        if (hasTimestampItems) menu->AppendSeparator();
+        menu->Append(ID_OPEN_CONVERTER, "Hex/Dec Converter");
+        hasConverters = true;
+    }
 
     // Add dynamic menu items from config
     std::vector<MenuItem> menuItems = m_config->GetMainMenuItems();
     if (!menuItems.empty()) {
-        menu->AppendSeparator();
+        if (hasTimestampItems || hasConverters) menu->AppendSeparator();
         
         int dynamicId = ID_DYNAMIC_MENU_START;
         for (const auto& item : menuItems) {
@@ -689,12 +700,8 @@ void SprintToolBoxApp::OnSprintError(const wxString& error, const wxString& erro
 #else
         UpdateTrayIcon("auth.err");
 #endif
-        // Start auth-error retry loop (every 30 s, up to 5 min)
-        if (m_retryTimer && !m_retryTimer->IsRunning()) {
-            m_retryCount    = 0;
-            m_retryMaxCount = AUTH_RETRY_MAX_COUNT;
-            m_retryTimer->Start(AUTH_RETRY_INTERVAL_MS);
-        }
+        // No retries for authentication errors - user must fix credentials
+        wxLogWarning("Authentication failed. Please check your JIRA credentials in SprintToolBox.ini");
     } else {
         UpdateTrayIcon(errorCode);
     }

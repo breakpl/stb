@@ -10,7 +10,9 @@ Config& Config::GetInstance() {
     return instance;
 }
 
-Config::Config() : m_jiraBoardID(0), m_configModTime(0) {
+Config::Config() : m_jiraBoardID(0), m_configModTime(0),
+                   m_showUnixTimestamp(true), m_showZuluTimestamp(true),
+                   m_showTimeConverter(true), m_showHexDecConverter(true) {
     LoadConfig();
 }
 
@@ -26,24 +28,10 @@ void Config::Reload() {
 wxString Config::FindConfigFile() const {
     wxArrayString searchPaths;
 
-    // Walk up ancestor directories starting from the directory containing the
-    // executable (the first entry IS the exe's own directory).
-    wxFileName walker(wxStandardPaths::Get().GetExecutablePath());
-    for (int i = 0; i < 7; i++) {
-        searchPaths.Add(walker.GetPath() + "/SprintToolBox.ini");
-        if (walker.GetDirCount() == 0)
-            break;
-        walker.RemoveLastDir();
-    }
-
-    // User home directory – convenient location for end users
+    // User home directory – primary location for user's personal config
     searchPaths.Add(wxGetHomeDir() + "/SprintToolBox.ini");
 
-    // Current working directory
-    searchPaths.Add("SprintToolBox.ini");
-
-    // Bundled Resources – kept as last-resort fallback because it may contain
-    // the example/stale credentials that were copied at package time.
+    // Bundled Resources – fallback config shipped with the app
     searchPaths.Add(wxStandardPaths::Get().GetResourcesDir() + "/SprintToolBox.ini");
 
     for (size_t i = 0; i < searchPaths.GetCount(); i++) {
@@ -110,6 +98,18 @@ void Config::LoadConfig() {
                         m_jiraBoardID = (int)boardId;
                     }
                 }
+            }
+        }
+        if (currentSection == "Display" && !line.IsEmpty() && !line.StartsWith("#")) {
+            int pos = line.Find('=');
+            if (pos != wxNOT_FOUND) {
+                wxString key = line.Left(pos).Trim();
+                wxString value = line.Mid(pos + 1).Trim();
+                bool boolValue = (value == "1" || value.CmpNoCase("true") == 0 || value.CmpNoCase("yes") == 0);
+                if (key.CmpNoCase("ShowUnixTimestamp") == 0) m_showUnixTimestamp = boolValue;
+                if (key.CmpNoCase("ShowZuluTimestamp") == 0) m_showZuluTimestamp = boolValue;
+                if (key.CmpNoCase("ShowTimeConverter") == 0) m_showTimeConverter = boolValue;
+                if (key.CmpNoCase("ShowHexDecConverter") == 0) m_showHexDecConverter = boolValue;
             }
         }
     }

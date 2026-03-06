@@ -36,6 +36,14 @@ if(APPLE)
     set_source_files_properties(src/SprintToolBoxApp.cpp PROPERTIES
         COMPILE_FLAGS "-x objective-c++")
     target_link_libraries(${PROJECT_NAME} ${wxWidgets_LIBRARIES} ${CURL_LIBRARIES} "-framework Cocoa")
+    
+    # Copy SprintToolBox.ini-example to bundle Resources as SprintToolBox.ini
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+            ${CMAKE_SOURCE_DIR}/SprintToolBox.ini-example
+            $<TARGET_BUNDLE_CONTENT_DIR:${PROJECT_NAME}>/Resources/SprintToolBox.ini
+        COMMENT "Copying SprintToolBox.ini-example to bundle Resources"
+    )
 else()
     target_link_libraries(${PROJECT_NAME} ${wxWidgets_LIBRARIES} ${CURL_LIBRARIES})
 endif()
