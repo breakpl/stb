@@ -53,7 +53,7 @@ jobs:
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ninja
-            mingw-w64-ucrt-x86_64-wxWidgets
+            mingw-w64-ucrt-x86_64-wxwidgets
             mingw-w64-ucrt-x86_64-curl
             zip
       
