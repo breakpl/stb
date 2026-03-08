@@ -50,6 +50,7 @@ public:
 
     // Exposed for unit testing – static because they are pure parsing helpers
     static SprintInfo ParseSprintJson(const wxString& json);
+    static SprintInfo ParsePublicSprintJson(const wxString& json);
     static wxDateTime ParseIsoDateTime(const wxString& isoString);
 
 private:

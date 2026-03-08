@@ -213,6 +213,12 @@ SprintToolBoxApp::~SprintToolBoxApp() {
         delete m_retryTimer;
         m_retryTimer = nullptr;
     }
+
+    if (m_fallbackTimer) {
+        m_fallbackTimer->Stop();
+        delete m_fallbackTimer;
+        m_fallbackTimer = nullptr;
+    }
     
     if (m_jiraService) {
         delete m_jiraService;
@@ -718,7 +724,7 @@ void SprintToolBoxApp::OnSprintError(const wxString& error, const wxString& erro
             m_retryMaxCount = NETWORK_RETRY_MAX_COUNT;
             m_retryTimer->Start(NETWORK_RETRY_INTERVAL_MS);
         }
-    } else if (errorCode == "AUTH_ERROR") {
+    } else if (errorCode == "AUTH_ERROR" || errorCode == "NOT_CONFIGURED") {
         // Show "not configured" message for 5 seconds before trying fallback
         UpdateTrayIcon("?");
         
@@ -756,6 +762,8 @@ void SprintToolBoxApp::OnFallbackTimer(wxTimerEvent& WXUNUSED(event)) {
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
     
     CURLcode res = curl_easy_perform(curl);
     curl_easy_cleanup(curl);
@@ -766,48 +774,17 @@ void SprintToolBoxApp::OnFallbackTimer(wxTimerEvent& WXUNUSED(event)) {
         return;
     }
     
-    // Parse simple JSON format: {"name":"Sprint 42","start":"2026-03-01","end":"2026-03-14"}
+    // Parse using JiraService helper
     wxString json(response);
-    wxString name, startStr, endStr;
+    SprintInfo sprint = JiraService::ParsePublicSprintJson(json);
     
-    // Simple JSON parser for our specific format
-    int namePos = json.Find("\"name\"");
-    if (namePos != wxNOT_FOUND) {
-        int colonPos = json.find(':', namePos);
-        int quoteStart = json.find('"', colonPos);
-        int quoteEnd = json.find('"', quoteStart + 1);
-        if (quoteStart != wxNOT_FOUND && quoteEnd != wxNOT_FOUND) {
-            name = json.SubString(quoteStart + 1, quoteEnd - 1);
-        }
-    }
-    
-    int startPos = json.Find("\"start\"");
-    if (startPos != wxNOT_FOUND) {
-        int colonPos = json.find(':', startPos);
-        int quoteStart = json.find('"', colonPos);
-        int quoteEnd = json.find('"', quoteStart + 1);
-        if (quoteStart != wxNOT_FOUND && quoteEnd != wxNOT_FOUND) {
-            startStr = json.SubString(quoteStart + 1, quoteEnd - 1);
-        }
-    }
-    
-    if (name.IsEmpty()) {
-        wxLogError("Failed to parse sprint name from public source");
+    if (sprint.name == "Unknown Sprint" || sprint.name.IsEmpty()) {
+        wxLogError("Failed to parse sprint from public source");
         UpdateTrayIcon("!");
         return;
     }
     
-    // Create SprintInfo from parsed data
-    SprintInfo sprint;
-    sprint.name = name;
-    sprint.state = "active";
-    
-    // Parse start date (format: YYYY-MM-DD)
-    if (!startStr.IsEmpty()) {
-        sprint.startDate.ParseFormat(startStr, "%Y-%m-%d");
-    }
-    
     // Display the sprint
     OnSprintFetched(sprint);
-    wxLogMessage("Successfully loaded sprint from public source: %s", name);
+    wxLogMessage("Successfully loaded sprint from public source: %s", sprint.name);
 }
