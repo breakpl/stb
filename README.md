@@ -2,7 +2,9 @@
 
 This project is a system tray application built using wxWidgets, designed as a DT helper tool. It locks shortcuts and features in system tray. Remains in dock as a current sprint number. 
 
-## Features
+Download your ready binaries from [Releases] (https://github.com/breakpl/stb/releases/tag/v1.0.1)
+
+or
 
 1. **Install wxWidgets**: Make sure you have wxWidgets installed on your system.
    
@@ -32,13 +34,8 @@ This project is a system tray application built using wxWidgets, designed as a D
 
 ## Usage
 
-After building the project, run the application:
-```bash
-./SprintToolBox
-```
-
-The application will start in the system tray. Right-click the tray icon to access:
+The application will start in the system tray. (win-Right)Click the tray icon to access:
 - Current Unix and Zulu timestamps (click to copy to clipboard)
 - Hex/Dec Converter dialog
-- Quit option
+- your own shortcuts
 
