@@ -8,7 +8,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DIST_DIR="$SCRIPT_DIR/dist/mac"
 APP_NAME="SprintToolBox"
-VERSION="1.0.0"
+# Auto-detect version from git tag or use default
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.4")
 
 # Determine which architecture(s) to build
 ARCH="${1:-both}"
