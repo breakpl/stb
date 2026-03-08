@@ -765,6 +765,11 @@ void SprintToolBoxApp::OnFallbackTimer(wxTimerEvent& WXUNUSED(event)) {
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
     
+#ifdef _WIN32
+    // Use Windows native certificate store for SSL verification
+    curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+#endif
+    
     CURLcode res = curl_easy_perform(curl);
     curl_easy_cleanup(curl);
     
