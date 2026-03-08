@@ -293,16 +293,19 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
         }
     }
 #elif defined(_WIN32)
-    // Windows: render text into a tray icon with proper alpha transparency
+    // Windows: render text into a small system-tray icon.
+    // Technique: draw WHITE text on a BLACK 32-bit DIB so that each pixel's
+    // luminance becomes the alpha coverage.  Then build a wxImage with the
+    // desired foreground colour + that alpha and convert via wxIcon.
     {
         wxString tooltip = "Sprint " + text;
         if (daysPassed >= 0) tooltip += wxString::Format(" (Day %d)", daysPassed);
 
-        // Icon size (DPI-aware)
+        // System small-icon metric (respects DPI on per-monitor builds).
         int iconSize = ::GetSystemMetrics(SM_CXSMICON);
         if (iconSize < 16) iconSize = 16;
 
-        // Detect dark/light taskbar via registry
+        // --- Detect dark / light taskbar via registry ---
         bool darkTaskbar = true;
         {
             HKEY hKey = nullptr;
@@ -317,46 +320,54 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
                 ::RegCloseKey(hKey);
             }
         }
-
         BYTE fgR = darkTaskbar ? 255 : 0;
         BYTE fgG = darkTaskbar ? 255 : 0;
         BYTE fgB = darkTaskbar ? 255 : 0;
 
-        // --- Step 1: Render WHITE text on BLACK background into a temp DIB ---
-        // GDI ClearType/antialiasing will produce shades of grey which we use
-        // as the coverage (alpha) mask.
+        // --- Step 1: Create a 32-bit top-down DIB section ---
         BITMAPINFO bmi = {};
         bmi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
         bmi.bmiHeader.biWidth       = iconSize;
-        bmi.bmiHeader.biHeight      = -iconSize; // top-down
+        bmi.bmiHeader.biHeight      = -iconSize;  // top-down
         bmi.bmiHeader.biPlanes      = 1;
         bmi.bmiHeader.biBitCount    = 32;
         bmi.bmiHeader.biCompression = BI_RGB;
 
         void* bits = nullptr;
         HDC screenDC = ::GetDC(nullptr);
-        HBITMAP hBmp = ::CreateDIBSection(screenDC, &bmi, DIB_RGB_COLORS, &bits, nullptr, 0);
+        HBITMAP hBmp = ::CreateDIBSection(screenDC, &bmi, DIB_RGB_COLORS,
+                                          &bits, nullptr, 0);
         HDC memDC = ::CreateCompatibleDC(screenDC);
         HBITMAP oldBmp = (HBITMAP)::SelectObject(memDC, hBmp);
 
-        // Black background
+        // Clear to black (all channels zero → fully transparent)
         memset(bits, 0, iconSize * iconSize * 4);
 
-        // Font: bold, sized to fit
+        // --- Step 2: Auto-size font so the text fits the icon ---
+        // Start large and shrink until the measured text extent fits inside
+        // the icon with 1 px padding on each side.
         int textLen = (int)text.length();
-        int fontSize;
-        if (textLen <= 2)      fontSize = iconSize - 2;
-        else if (textLen <= 3) fontSize = iconSize - 4;
-        else                   fontSize = iconSize - 6;
-        if (fontSize < 6) fontSize = 6;
+        int fontSize = iconSize - 2;          // starting height
+        HFONT hFont = nullptr;
+        SIZE  textExtent = {};
 
-        HFONT hFont = ::CreateFontW(
-            -fontSize, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
-            ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
-        HFONT oldFont = (HFONT)::SelectObject(memDC, hFont);
+        while (fontSize > 5) {
+            if (hFont) ::DeleteObject(hFont);
+            hFont = ::CreateFontW(
+                -fontSize, 0, 0, 0,
+                (textLen <= 2) ? FW_BOLD : FW_SEMIBOLD,
+                FALSE, FALSE, FALSE,
+                DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
+                ANTIALIASED_QUALITY,
+                DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+            ::SelectObject(memDC, hFont);
+            ::GetTextExtentPoint32W(memDC, text.wc_str(), textLen, &textExtent);
+            if (textExtent.cx <= iconSize - 2 && textExtent.cy <= iconSize)
+                break;                         // fits with 1 px side padding
+            fontSize--;
+        }
 
-        // Draw WHITE text so any pixel brightness = coverage
+        // --- Step 3: Draw WHITE text (pixel luminance = coverage) ---
         ::SetBkMode(memDC, TRANSPARENT);
         ::SetTextColor(memDC, RGB(255, 255, 255));
 
@@ -364,59 +375,39 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
         ::DrawTextW(memDC, text.wc_str(), -1, &rc,
                     DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
 
-        ::SelectObject(memDC, oldFont);
-        ::DeleteObject(hFont);
+        ::GdiFlush();                          // commit pixel data before reading
+
+        // Clean up GDI objects (keep hBmp alive – bits pointer still valid)
         ::SelectObject(memDC, oldBmp);
         ::DeleteDC(memDC);
+        if (hFont) ::DeleteObject(hFont);
         ::ReleaseDC(nullptr, screenDC);
 
-        // --- Step 2: Convert to premultiplied BGRA ---
-        // For each pixel, the max of (R,G,B) written by GDI = coverage/alpha.
-        // Then set the color channels to target color * alpha / 255.
-        BYTE* pixel = (BYTE*)bits;
-        for (int i = 0; i < iconSize * iconSize; i++, pixel += 4) {
-            BYTE b = pixel[0], g = pixel[1], r = pixel[2];
-            // Use max channel as alpha (handles ClearType sub-pixel variation)
-            BYTE alpha = r;
-            if (g > alpha) alpha = g;
-            if (b > alpha) alpha = b;
+        // --- Step 4: Build wxImage from DIB luminance → alpha ---
+        wxImage img(iconSize, iconSize);
+        img.InitAlpha();
 
-            if (alpha > 0) {
-                // Premultiplied alpha: channel = targetColor * alpha / 255
-                pixel[0] = (BYTE)(fgB * alpha / 255); // B
-                pixel[1] = (BYTE)(fgG * alpha / 255); // G
-                pixel[2] = (BYTE)(fgR * alpha / 255); // R
-                pixel[3] = alpha;                      // A
+        BYTE* px = (BYTE*)bits;
+        for (int y = 0; y < iconSize; y++) {
+            for (int x = 0; x < iconSize; x++, px += 4) {
+                // max(R,G,B) gives the true coverage even under ClearType
+                BYTE alpha = px[2];                    // R
+                if (px[1] > alpha) alpha = px[1];      // G
+                if (px[0] > alpha) alpha = px[0];      // B
+
+                img.SetRGB(x, y, fgR, fgG, fgB);
+                img.SetAlpha(x, y, alpha);
             }
-            // else: stays (0,0,0,0) = fully transparent
         }
 
-        // --- Step 3: Create HICON ---
-        HBITMAP hMask = ::CreateBitmap(iconSize, iconSize, 1, 1, nullptr);
-        {
-            HDC maskDC = ::CreateCompatibleDC(nullptr);
-            HBITMAP oldMask = (HBITMAP)::SelectObject(maskDC, hMask);
-            RECT mr = { 0, 0, iconSize, iconSize };
-            ::FillRect(maskDC, &mr, (HBRUSH)::GetStockObject(BLACK_BRUSH));
-            ::SelectObject(maskDC, oldMask);
-            ::DeleteDC(maskDC);
-        }
+        ::DeleteObject(hBmp);                  // done reading bits
 
-        ICONINFO ii = {};
-        ii.fIcon    = TRUE;
-        ii.hbmMask  = hMask;
-        ii.hbmColor = hBmp;
-        HICON hIcon = ::CreateIconIndirect(&ii);
-
-        ::DeleteObject(hMask);
-        ::DeleteObject(hBmp);
-
-        if (hIcon) {
-            wxIcon icon;
-            icon.CreateFromHICON((WXHICON)hIcon);
-            m_trayIconCurrent = icon;
-            SetIcon(m_trayIconCurrent, tooltip);
-        }
+        // --- Step 5: wxImage → wxBitmap → wxIcon → tray ---
+        wxBitmap bmp(img, 32);
+        wxIcon icon;
+        icon.CopyFromBitmap(bmp);
+        m_trayIconCurrent = icon;
+        SetIcon(m_trayIconCurrent, tooltip);
     }
 #else
     // Linux/generic fallback: simple wxWidgets bitmap icon
