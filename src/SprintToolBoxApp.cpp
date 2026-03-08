@@ -345,13 +345,13 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
         // Font: bold, sized to fit
         int textLen = (int)text.length();
         int fontSize;
-        if (textLen <= 2)      fontSize = iconSize - 2;
-        else if (textLen <= 3) fontSize = iconSize - 4;
-        else                   fontSize = iconSize - 6;
+        if (textLen <= 2)      fontSize = iconSize - 3;
+        else if (textLen <= 3) fontSize = iconSize - 5;
+        else                   fontSize = iconSize - 7;
         if (fontSize < 6) fontSize = 6;
 
         HFONT hFont = ::CreateFontW(
-            -fontSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            -fontSize, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
             ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial Narrow");
         HFONT oldFont = (HFONT)::SelectObject(memDC, hFont);
