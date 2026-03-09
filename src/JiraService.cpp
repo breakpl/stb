@@ -39,7 +39,7 @@ void JiraService::FetchCurrentSprint() {
     wxLogMessage("Fetching current sprint from JIRA...");
 
     // Check for unconfigured / placeholder credentials (including the default
-    // example email that ships with SprintToolBox.ini-example).
+    // example email that ships with SprintToolBox.ini).
     static const wxString DEFAULT_EMAIL = "user.name@your.doma.in";
     if (m_email == DEFAULT_EMAIL ||
         m_email == "test@example.com" || m_email.IsEmpty() ||
