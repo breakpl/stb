@@ -17,6 +17,12 @@ TEST_CASE("GetDisplayText strips 'Dev Sprint ' prefix", "[sprint]") {
     REQUIRE(s.GetDisplayText() == "333");
 }
 
+TEST_CASE("GetDisplayText strips 'Sprint ' prefix", "[sprint]") {
+    SprintInfo s;
+    s.name = "Sprint 336";
+    REQUIRE(s.GetDisplayText() == "336");
+}
+
 TEST_CASE("GetDisplayText preserves names that don't start with 'Dev Sprint '", "[sprint]") {
     SprintInfo s;
     s.name = "My Custom Sprint";

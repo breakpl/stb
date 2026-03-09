@@ -13,10 +13,12 @@ struct SprintInfo {
     wxDateTime endDate;
     
     wxString GetDisplayText() const {
-        // Extract just the number from "Dev Sprint 333" -> "333"
+        // Extract just the number from "Dev Sprint 333" or "Sprint 336" -> "333" or "336"
         wxString displayText = name;
         if (displayText.StartsWith("Dev Sprint ")) {
             displayText = displayText.Mid(11);
+        } else if (displayText.StartsWith("Sprint ")) {
+            displayText = displayText.Mid(7);
         }
         return displayText;
     }
