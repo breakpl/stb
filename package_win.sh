@@ -30,10 +30,7 @@ rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR"
 
 cp "$EXE" "$STAGE_DIR/"
-cp "$SCRIPT_DIR/SprintToolBox.ini-example" "$STAGE_DIR/SprintToolBox.ini-example"
-if [ -f "$SCRIPT_DIR/SprintToolBox.ini" ]; then
-    cp "$SCRIPT_DIR/SprintToolBox.ini" "$STAGE_DIR/SprintToolBox.ini"
-fi
+cp "$SCRIPT_DIR/SprintToolBox.ini" "$STAGE_DIR/SprintToolBox.ini"
 
 # ── 3. Collect DLLs (exclude Windows system DLLs) ────────────────────────────
 echo "==> Collecting DLLs..."

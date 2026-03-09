@@ -37,8 +37,8 @@ mkdir -p "$DEB_BIN" "$DEB_SHARE_APPS" "$DEB_SHARE_DOC" "$DEB_CTRL"
 cp "$EXE" "$DEB_BIN/$APP_NAME_LOWER"
 chmod 755 "$DEB_BIN/$APP_NAME_LOWER"
 
-# Config example → /usr/share/doc/
-cp "$SCRIPT_DIR/SprintToolBox.ini-example" "$DEB_SHARE_DOC/SprintToolBox.ini-example"
+# Config → /usr/share/doc/
+cp "$SCRIPT_DIR/SprintToolBox.ini" "$DEB_SHARE_DOC/SprintToolBox.ini"
 
 # .desktop file (autostart-capable)
 cat > "$DEB_SHARE_APPS/$APP_NAME_LOWER.desktop" <<EOF
