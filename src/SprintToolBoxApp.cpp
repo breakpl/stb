@@ -762,13 +762,11 @@ void SprintToolBoxApp::OnFallbackTimer(wxTimerEvent& WXUNUSED(event)) {
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
     
-#ifdef _WIN32
-    // Use Windows native certificate store for SSL verification
-    curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
-#endif
+    // For the public fallback URL (GitHub CDN), disable SSL verification
+    // to avoid CA certificate issues on portable Windows builds
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
     
     CURLcode res = curl_easy_perform(curl);
     curl_easy_cleanup(curl);
