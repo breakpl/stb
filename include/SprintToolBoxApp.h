@@ -53,6 +53,7 @@ private:
     wxString m_unixTimestamp;
     wxString m_zuluTimestamp;
     wxIcon m_trayIconCurrent;   // keeps the HICON alive for the duration of each tray icon display
+    bool m_menuShowing;         // guard against re-entrant ShowContextMenu()
     ConverterDialog* m_converterDialog;
     TimeConverterDialog* m_timeConverterDialog;
     JiraService* m_jiraService;

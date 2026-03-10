@@ -75,10 +75,8 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_TIMER(ID_FALLBACK_TIMER, SprintToolBoxApp::OnFallbackTimer)
     EVT_MENU_RANGE(ID_DYNAMIC_MENU_START, ID_DYNAMIC_MENU_START + 999, SprintToolBoxApp::OnDynamicMenuClick)
     EVT_TASKBAR_LEFT_UP(SprintToolBoxApp::OnTaskBarClick)
-    EVT_TASKBAR_LEFT_DOWN(SprintToolBoxApp::OnTaskBarClick)
 #ifdef _WIN32
     EVT_TASKBAR_RIGHT_UP(SprintToolBoxApp::OnTaskBarClick)
-    EVT_TASKBAR_RIGHT_DOWN(SprintToolBoxApp::OnTaskBarClick)
 #endif
 wxEND_EVENT_TABLE()
 
@@ -96,6 +94,7 @@ SprintToolBoxApp::SprintToolBoxApp()
     , m_retryMaxCount(0)
     , m_currentIconText("...")
     , m_currentDaysPassed(-1)
+    , m_menuShowing(false)
 #ifdef __WXOSX__
     , m_themeObserver(nullptr)
     , m_statusItem(nullptr)
@@ -360,27 +359,6 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
         // Start large and shrink until the measured text extent fits inside
         // the icon with 1 px padding on each side.
         int textLen = (int)text.length();
-<<<<<<< HEAD
-        int fontSize = iconSize - 2;          // starting height
-        HFONT hFont = nullptr;
-        SIZE  textExtent = {};
-
-        while (fontSize > 5) {
-            if (hFont) ::DeleteObject(hFont);
-            hFont = ::CreateFontW(
-                -fontSize, 0, 0, 0,
-                (textLen <= 2) ? FW_BOLD : FW_SEMIBOLD,
-                FALSE, FALSE, FALSE,
-                DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
-                ANTIALIASED_QUALITY,
-                DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
-            ::SelectObject(memDC, hFont);
-            ::GetTextExtentPoint32W(memDC, text.wc_str(), textLen, &textExtent);
-            if (textExtent.cx <= iconSize - 2 && textExtent.cy <= iconSize)
-                break;                         // fits with 1 px side padding
-            fontSize--;
-        }
-=======
         int fontSize;
         if (textLen <= 2)      fontSize = iconSize - 3;
         else if (textLen <= 3) fontSize = iconSize - 5;
@@ -392,9 +370,8 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
             DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
             ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial Narrow");
         HFONT oldFont = (HFONT)::SelectObject(memDC, hFont);
->>>>>>> 9cc19b218fff5dc1bf2284a2a33edf92be980ae3
 
-        // --- Step 3: Draw WHITE text (pixel luminance = coverage) ---
+        // Draw WHITE text so any pixel brightness = coverage
         ::SetBkMode(memDC, TRANSPARENT);
         ::SetTextColor(memDC, RGB(255, 255, 255));
 
@@ -494,29 +471,36 @@ wxMenu* SprintToolBoxApp::CreatePopupMenu() {
 
 void SprintToolBoxApp::OnTaskBarClick(wxTaskBarIconEvent& event) {
 #ifdef _WIN32
-    // On Windows, manually show the menu with foreground thread fix
     ShowContextMenu();
 #elif defined(__WXGTK__)
-    // On Linux/GTK, only handle left-click here (CreatePopupMenu handles right-click)
-    if (event.GetEventType() == wxEVT_TASKBAR_LEFT_UP || 
-        event.GetEventType() == wxEVT_TASKBAR_LEFT_DOWN) {
-        ShowContextMenu();
-    }
+    ShowContextMenu();
 #endif
-    // On macOS, CreatePopupMenu() handles everything
+    // On macOS, CreatePopupMenu() handles everything — this handler is a no-op.
 }
 
 void SprintToolBoxApp::ShowContextMenu() {
+    // Guard against re-entrant calls (DOWN+UP, rapid double-click, etc.)
+    if (m_menuShowing) return;
+    m_menuShowing = true;
+
     wxMenu* menu = BuildPopupMenu();
-    if (!menu) return;
+    if (!menu) { m_menuShowing = false; return; }
+
+    // Pause timers that trigger synchronous HTTP so they can't block
+    // the main thread while the popup is visible.
+    bool sprintWasRunning = m_sprintUpdateTimer && m_sprintUpdateTimer->IsRunning();
+    bool configWasRunning = m_configWatchTimer  && m_configWatchTimer->IsRunning();
+    bool retryWasRunning  = m_retryTimer        && m_retryTimer->IsRunning();
+    bool fallbackWasRunning = m_fallbackTimer    && m_fallbackTimer->IsRunning();
+    if (sprintWasRunning)   m_sprintUpdateTimer->Stop();
+    if (configWasRunning)   m_configWatchTimer->Stop();
+    if (retryWasRunning)    m_retryTimer->Stop();
+    if (fallbackWasRunning) m_fallbackTimer->Stop();
 
 #ifdef _WIN32
     // KB Q135788 – TrackPopupMenu requires the owner window to be the
-    // foreground window.  wxTaskBarIcon::PopupMenu() calls
-    // SetForegroundWindow internally, but that API can silently fail if
-    // another thread/process owns the foreground lock.  Temporarily
-    // attaching our thread input to the foreground thread lets
-    // SetForegroundWindow succeed reliably.
+    // foreground window.  Temporarily attach our thread input to the
+    // current foreground thread so SetForegroundWindow succeeds.
     HWND fgWnd = ::GetForegroundWindow();
     DWORD fgThread = fgWnd ? ::GetWindowThreadProcessId(fgWnd, NULL) : 0;
     DWORD myThread = ::GetCurrentThreadId();
@@ -529,12 +513,19 @@ void SprintToolBoxApp::ShowContextMenu() {
     PopupMenu(menu);
 
 #ifdef _WIN32
-    if (attached) {
+    if (attached)
         ::AttachThreadInput(fgThread, myThread, FALSE);
-    }
 #endif
 
     delete menu;
+
+    // Restart timers that were running before the popup.
+    if (sprintWasRunning)   m_sprintUpdateTimer->Start(SPRINT_UPDATE_INTERVAL_MS);
+    if (configWasRunning)   m_configWatchTimer->Start(10000);
+    if (retryWasRunning)    m_retryTimer->Start();     // resumes with remaining interval
+    if (fallbackWasRunning) m_fallbackTimer->Start();
+
+    m_menuShowing = false;
 }
 
 wxMenu* SprintToolBoxApp::BuildPopupMenu() {
