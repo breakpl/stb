@@ -10,7 +10,8 @@ DIST_DIR="$SCRIPT_DIR/dist/linux"
 APP_NAME="SprintToolBox"
 APP_NAME_LOWER="sprinttoolbox"
 EXE="$BUILD_DIR/$APP_NAME"
-VERSION="1.0.0"
+# Auto-detect version from git tag or use default
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.4")
 ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
 
 # ── 1. Build ──────────────────────────────────────────────────────────────────
@@ -36,8 +37,8 @@ mkdir -p "$DEB_BIN" "$DEB_SHARE_APPS" "$DEB_SHARE_DOC" "$DEB_CTRL"
 cp "$EXE" "$DEB_BIN/$APP_NAME_LOWER"
 chmod 755 "$DEB_BIN/$APP_NAME_LOWER"
 
-# Config example → /usr/share/doc/
-cp "$SCRIPT_DIR/SprintToolBox.ini-example" "$DEB_SHARE_DOC/SprintToolBox.ini-example"
+# Config → /usr/share/doc/
+cp "$SCRIPT_DIR/SprintToolBox.ini" "$DEB_SHARE_DOC/SprintToolBox.ini"
 
 # .desktop file (autostart-capable)
 cat > "$DEB_SHARE_APPS/$APP_NAME_LOWER.desktop" <<EOF

@@ -7,6 +7,8 @@
 #include <wx/datetime.h>
 #include <wx/icon.h>
 #include <wx/bitmap.h>
+#include <curl/curl.h>
+#include <string>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -70,6 +72,7 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_TIMER(ID_SPRINT_TIMER, SprintToolBoxApp::OnSprintUpdateTimer)
     EVT_TIMER(ID_RETRY_TIMER,  SprintToolBoxApp::OnRetryTimer)
     EVT_TIMER(ID_CONFIG_WATCH_TIMER, SprintToolBoxApp::OnConfigWatchTimer)
+    EVT_TIMER(ID_FALLBACK_TIMER, SprintToolBoxApp::OnFallbackTimer)
     EVT_MENU_RANGE(ID_DYNAMIC_MENU_START, ID_DYNAMIC_MENU_START + 999, SprintToolBoxApp::OnDynamicMenuClick)
     EVT_TASKBAR_LEFT_UP(SprintToolBoxApp::OnTaskBarClick)
     EVT_TASKBAR_LEFT_DOWN(SprintToolBoxApp::OnTaskBarClick)
@@ -88,6 +91,7 @@ SprintToolBoxApp::SprintToolBoxApp()
     , m_sprintUpdateTimer(nullptr)
     , m_configWatchTimer(nullptr)
     , m_retryTimer(nullptr)
+    , m_fallbackTimer(nullptr)
     , m_retryCount(0)
     , m_retryMaxCount(0)
     , m_currentIconText("...")
@@ -118,6 +122,9 @@ SprintToolBoxApp::SprintToolBoxApp()
 
     // Retry timer (started on demand when a transient error occurs)
     m_retryTimer = new wxTimer(this, ID_RETRY_TIMER);
+
+    // Fallback timer (delays switch to public sprint source after AUTH_ERROR)
+    m_fallbackTimer = new wxTimer(this, ID_FALLBACK_TIMER);
 
     // Config-file watcher: poll the INI modification time every 10 s so
     // that credential / setting changes are picked up promptly.
@@ -205,6 +212,12 @@ SprintToolBoxApp::~SprintToolBoxApp() {
         m_retryTimer->Stop();
         delete m_retryTimer;
         m_retryTimer = nullptr;
+    }
+
+    if (m_fallbackTimer) {
+        m_fallbackTimer->Stop();
+        delete m_fallbackTimer;
+        m_fallbackTimer = nullptr;
     }
     
     if (m_jiraService) {
@@ -347,6 +360,7 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
         // Start large and shrink until the measured text extent fits inside
         // the icon with 1 px padding on each side.
         int textLen = (int)text.length();
+<<<<<<< HEAD
         int fontSize = iconSize - 2;          // starting height
         HFONT hFont = nullptr;
         SIZE  textExtent = {};
@@ -366,6 +380,19 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
                 break;                         // fits with 1 px side padding
             fontSize--;
         }
+=======
+        int fontSize;
+        if (textLen <= 2)      fontSize = iconSize - 3;
+        else if (textLen <= 3) fontSize = iconSize - 5;
+        else                   fontSize = iconSize - 7;
+        if (fontSize < 6) fontSize = 6;
+
+        HFONT hFont = ::CreateFontW(
+            -fontSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
+            ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial Narrow");
+        HFONT oldFont = (HFONT)::SelectObject(memDC, hFont);
+>>>>>>> 9cc19b218fff5dc1bf2284a2a33edf92be980ae3
 
         // --- Step 3: Draw WHITE text (pixel luminance = coverage) ---
         ::SetBkMode(memDC, TRANSPARENT);
@@ -702,15 +729,70 @@ void SprintToolBoxApp::OnSprintError(const wxString& error, const wxString& erro
             m_retryMaxCount = NETWORK_RETRY_MAX_COUNT;
             m_retryTimer->Start(NETWORK_RETRY_INTERVAL_MS);
         }
-    } else if (errorCode == "AUTH_ERROR") {
-#ifdef _WIN32
-        UpdateTrayIcon("EA!");
-#else
-        UpdateTrayIcon("auth.err");
-#endif
-        // No retries for authentication errors - user must fix credentials
-        wxLogWarning("Authentication failed. Please check your JIRA credentials in SprintToolBox.ini");
+    } else if (errorCode == "AUTH_ERROR" || errorCode == "NOT_CONFIGURED") {
+        // Show "not configured" message for 5 seconds before trying fallback
+        UpdateTrayIcon("?");
+        
+        // Start fallback timer to switch to public sprint source after 5 seconds
+        if (m_fallbackTimer && !m_fallbackTimer->IsRunning()) {
+            m_fallbackTimer->StartOnce(5000);  // 5 seconds
+        }
+        
+        wxLogWarning("Authentication failed or not configured. Will try public fallback in 5 seconds.");
     } else {
         UpdateTrayIcon(errorCode);
     }
+}
+
+void SprintToolBoxApp::OnFallbackTimer(wxTimerEvent& WXUNUSED(event)) {
+    // Hardcoded public sprint URL
+    wxString publicURL = "https://raw.githubusercontent.com/breakpl/stb/main/current-sprint.json";
+    
+    wxLogMessage("Fetching sprint from public source: %s", publicURL);
+    
+    // Fetch JSON from public URL using CURL
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        wxLogError("Failed to initialize CURL for public sprint fetch");
+        return;
+    }
+    
+    std::string response;
+    curl_easy_setopt(curl, CURLOPT_URL, publicURL.utf8_str().data());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, +[](void* ptr, size_t size, size_t nmemb, void* userdata) -> size_t {
+        std::string* str = static_cast<std::string*>(userdata);
+        str->append(static_cast<char*>(ptr), size * nmemb);
+        return size * nmemb;
+    });
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    
+    // For the public fallback URL (GitHub CDN), disable SSL verification
+    // to avoid CA certificate issues on portable Windows builds
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    
+    CURLcode res = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+    
+    if (res != CURLE_OK) {
+        wxLogError("Failed to fetch public sprint: %s", curl_easy_strerror(res));
+        UpdateTrayIcon("!");
+        return;
+    }
+    
+    // Parse using JiraService helper
+    wxString json(response);
+    SprintInfo sprint = JiraService::ParsePublicSprintJson(json);
+    
+    if (sprint.name == "Unknown Sprint" || sprint.name.IsEmpty()) {
+        wxLogError("Failed to parse sprint from public source");
+        UpdateTrayIcon("!");
+        return;
+    }
+    
+    // Display the sprint
+    OnSprintFetched(sprint);
+    wxLogMessage("Successfully loaded sprint from public source: %s", sprint.name);
 }

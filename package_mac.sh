@@ -8,7 +8,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DIST_DIR="$SCRIPT_DIR/dist/mac"
 APP_NAME="SprintToolBox"
-VERSION="1.0.0"
+# Auto-detect version from git tag or use default
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.4")
 
 # Determine which architecture(s) to build
 ARCH="${1:-both}"
@@ -78,13 +79,11 @@ build_for_arch() {
                  -Wno-dev
     cmake --build . --config Release
 
-    # ── 2. Copy SprintToolBox.ini-example into the bundle Resources ───────────────
+    # ── 2. Copy SprintToolBox.ini into the bundle Resources ───────────────
     local RESOURCES="$APP_BUNDLE/Contents/Resources"
     mkdir -p "$RESOURCES"
-    # Copy SprintToolBox.ini-example as the bundled config (fallback)
-    cp "$SCRIPT_DIR/SprintToolBox.ini-example" "$RESOURCES/SprintToolBox.ini"
-    # Also ship the -example file for reference
-    cp "$SCRIPT_DIR/SprintToolBox.ini-example" "$RESOURCES/SprintToolBox.ini-example"
+    # Copy SprintToolBox.ini as the bundled config
+    cp "$SCRIPT_DIR/SprintToolBox.ini" "$RESOURCES/SprintToolBox.ini"
 
     # ── 3. Bundle dylibs ──────────────────────────────────────────────────────────
     echo "==> Bundling dylibs..."

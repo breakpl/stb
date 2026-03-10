@@ -14,7 +14,8 @@ DIST_DIR="$SCRIPT_DIR/dist/win"
 STAGE_DIR="$DIST_DIR/SprintToolBox"
 APP_NAME="SprintToolBox"
 EXE="$BUILD_DIR/$APP_NAME.exe"
-VERSION="1.0.0"
+# Auto-detect version from git tag or use default
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.4")
 
 # ── 1. Build ──────────────────────────────────────────────────────────────────
 echo "==> Building $APP_NAME (Release)..."
@@ -29,10 +30,7 @@ rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR"
 
 cp "$EXE" "$STAGE_DIR/"
-cp "$SCRIPT_DIR/SprintToolBox.ini-example" "$STAGE_DIR/SprintToolBox.ini-example"
-if [ -f "$SCRIPT_DIR/SprintToolBox.ini" ]; then
-    cp "$SCRIPT_DIR/SprintToolBox.ini" "$STAGE_DIR/SprintToolBox.ini"
-fi
+cp "$SCRIPT_DIR/SprintToolBox.ini" "$STAGE_DIR/SprintToolBox.ini"
 
 # ── 3. Collect DLLs (exclude Windows system DLLs) ────────────────────────────
 echo "==> Collecting DLLs..."

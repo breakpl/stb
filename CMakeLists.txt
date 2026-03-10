@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(SprintToolBox)
+project(SprintToolBox VERSION 1.0.5)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -37,12 +37,12 @@ if(APPLE)
         COMPILE_FLAGS "-x objective-c++")
     target_link_libraries(${PROJECT_NAME} ${wxWidgets_LIBRARIES} ${CURL_LIBRARIES} "-framework Cocoa")
     
-    # Copy SprintToolBox.ini-example to bundle Resources as SprintToolBox.ini
+    # Copy SprintToolBox.ini to bundle Resources
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_SOURCE_DIR}/SprintToolBox.ini-example
+            ${CMAKE_SOURCE_DIR}/SprintToolBox.ini
             $<TARGET_BUNDLE_CONTENT_DIR:${PROJECT_NAME}>/Resources/SprintToolBox.ini
-        COMMENT "Copying SprintToolBox.ini-example to bundle Resources"
+        COMMENT "Copying SprintToolBox.ini to bundle Resources"
     )
 else()
     target_link_libraries(${PROJECT_NAME} ${wxWidgets_LIBRARIES} ${CURL_LIBRARIES})

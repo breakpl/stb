@@ -17,6 +17,8 @@ jobs:
         arch: [arm64, intel]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
       - name: Install dependencies (ARM64)
         if: matrix.arch == 'arm64'
@@ -46,6 +48,8 @@ jobs:
         shell: msys2 {0}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
       - uses: msys2/setup-msys2@v2
         with:
@@ -73,6 +77,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
       - name: Install dependencies
         run: |
