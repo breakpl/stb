@@ -75,10 +75,8 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_TIMER(ID_FALLBACK_TIMER, SprintToolBoxApp::OnFallbackTimer)
     EVT_MENU_RANGE(ID_DYNAMIC_MENU_START, ID_DYNAMIC_MENU_START + 999, SprintToolBoxApp::OnDynamicMenuClick)
     EVT_TASKBAR_LEFT_UP(SprintToolBoxApp::OnTaskBarClick)
-    EVT_TASKBAR_LEFT_DOWN(SprintToolBoxApp::OnTaskBarClick)
 #ifdef _WIN32
     EVT_TASKBAR_RIGHT_UP(SprintToolBoxApp::OnTaskBarClick)
-    EVT_TASKBAR_RIGHT_DOWN(SprintToolBoxApp::OnTaskBarClick)
 #endif
 wxEND_EVENT_TABLE()
 
@@ -96,6 +94,7 @@ SprintToolBoxApp::SprintToolBoxApp()
     , m_retryMaxCount(0)
     , m_currentIconText("...")
     , m_currentDaysPassed(-1)
+    , m_menuShowing(false)
 #ifdef __WXOSX__
     , m_themeObserver(nullptr)
     , m_statusItem(nullptr)
@@ -306,16 +305,19 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
         }
     }
 #elif defined(_WIN32)
-    // Windows: render text into a tray icon with proper alpha transparency
+    // Windows: render text into a small system-tray icon.
+    // Technique: draw WHITE text on a BLACK 32-bit DIB so that each pixel's
+    // luminance becomes the alpha coverage.  Then build a wxImage with the
+    // desired foreground colour + that alpha and convert via wxIcon.
     {
         wxString tooltip = "Sprint " + text;
         if (daysPassed >= 0) tooltip += wxString::Format(" (Day %d)", daysPassed);
 
-        // Icon size (DPI-aware)
+        // System small-icon metric (respects DPI on per-monitor builds).
         int iconSize = ::GetSystemMetrics(SM_CXSMICON);
         if (iconSize < 16) iconSize = 16;
 
-        // Detect dark/light taskbar via registry
+        // --- Detect dark / light taskbar via registry ---
         bool darkTaskbar = true;
         {
             HKEY hKey = nullptr;
@@ -330,32 +332,32 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
                 ::RegCloseKey(hKey);
             }
         }
-
         BYTE fgR = darkTaskbar ? 255 : 0;
         BYTE fgG = darkTaskbar ? 255 : 0;
         BYTE fgB = darkTaskbar ? 255 : 0;
 
-        // --- Step 1: Render WHITE text on BLACK background into a temp DIB ---
-        // GDI ClearType/antialiasing will produce shades of grey which we use
-        // as the coverage (alpha) mask.
+        // --- Step 1: Create a 32-bit top-down DIB section ---
         BITMAPINFO bmi = {};
         bmi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
         bmi.bmiHeader.biWidth       = iconSize;
-        bmi.bmiHeader.biHeight      = -iconSize; // top-down
+        bmi.bmiHeader.biHeight      = -iconSize;  // top-down
         bmi.bmiHeader.biPlanes      = 1;
         bmi.bmiHeader.biBitCount    = 32;
         bmi.bmiHeader.biCompression = BI_RGB;
 
         void* bits = nullptr;
         HDC screenDC = ::GetDC(nullptr);
-        HBITMAP hBmp = ::CreateDIBSection(screenDC, &bmi, DIB_RGB_COLORS, &bits, nullptr, 0);
+        HBITMAP hBmp = ::CreateDIBSection(screenDC, &bmi, DIB_RGB_COLORS,
+                                          &bits, nullptr, 0);
         HDC memDC = ::CreateCompatibleDC(screenDC);
         HBITMAP oldBmp = (HBITMAP)::SelectObject(memDC, hBmp);
 
-        // Black background
+        // Clear to black (all channels zero → fully transparent)
         memset(bits, 0, iconSize * iconSize * 4);
 
-        // Font: bold, sized to fit
+        // --- Step 2: Auto-size font so the text fits the icon ---
+        // Start large and shrink until the measured text extent fits inside
+        // the icon with 1 px padding on each side.
         int textLen = (int)text.length();
         int fontSize;
         if (textLen <= 2)      fontSize = iconSize - 3;
@@ -377,59 +379,39 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
         ::DrawTextW(memDC, text.wc_str(), -1, &rc,
                     DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
 
-        ::SelectObject(memDC, oldFont);
-        ::DeleteObject(hFont);
+        ::GdiFlush();                          // commit pixel data before reading
+
+        // Clean up GDI objects (keep hBmp alive – bits pointer still valid)
         ::SelectObject(memDC, oldBmp);
         ::DeleteDC(memDC);
+        if (hFont) ::DeleteObject(hFont);
         ::ReleaseDC(nullptr, screenDC);
 
-        // --- Step 2: Convert to premultiplied BGRA ---
-        // For each pixel, the max of (R,G,B) written by GDI = coverage/alpha.
-        // Then set the color channels to target color * alpha / 255.
-        BYTE* pixel = (BYTE*)bits;
-        for (int i = 0; i < iconSize * iconSize; i++, pixel += 4) {
-            BYTE b = pixel[0], g = pixel[1], r = pixel[2];
-            // Use max channel as alpha (handles ClearType sub-pixel variation)
-            BYTE alpha = r;
-            if (g > alpha) alpha = g;
-            if (b > alpha) alpha = b;
+        // --- Step 4: Build wxImage from DIB luminance → alpha ---
+        wxImage img(iconSize, iconSize);
+        img.InitAlpha();
 
-            if (alpha > 0) {
-                // Premultiplied alpha: channel = targetColor * alpha / 255
-                pixel[0] = (BYTE)(fgB * alpha / 255); // B
-                pixel[1] = (BYTE)(fgG * alpha / 255); // G
-                pixel[2] = (BYTE)(fgR * alpha / 255); // R
-                pixel[3] = alpha;                      // A
+        BYTE* px = (BYTE*)bits;
+        for (int y = 0; y < iconSize; y++) {
+            for (int x = 0; x < iconSize; x++, px += 4) {
+                // max(R,G,B) gives the true coverage even under ClearType
+                BYTE alpha = px[2];                    // R
+                if (px[1] > alpha) alpha = px[1];      // G
+                if (px[0] > alpha) alpha = px[0];      // B
+
+                img.SetRGB(x, y, fgR, fgG, fgB);
+                img.SetAlpha(x, y, alpha);
             }
-            // else: stays (0,0,0,0) = fully transparent
         }
 
-        // --- Step 3: Create HICON ---
-        HBITMAP hMask = ::CreateBitmap(iconSize, iconSize, 1, 1, nullptr);
-        {
-            HDC maskDC = ::CreateCompatibleDC(nullptr);
-            HBITMAP oldMask = (HBITMAP)::SelectObject(maskDC, hMask);
-            RECT mr = { 0, 0, iconSize, iconSize };
-            ::FillRect(maskDC, &mr, (HBRUSH)::GetStockObject(BLACK_BRUSH));
-            ::SelectObject(maskDC, oldMask);
-            ::DeleteDC(maskDC);
-        }
+        ::DeleteObject(hBmp);                  // done reading bits
 
-        ICONINFO ii = {};
-        ii.fIcon    = TRUE;
-        ii.hbmMask  = hMask;
-        ii.hbmColor = hBmp;
-        HICON hIcon = ::CreateIconIndirect(&ii);
-
-        ::DeleteObject(hMask);
-        ::DeleteObject(hBmp);
-
-        if (hIcon) {
-            wxIcon icon;
-            icon.CreateFromHICON((WXHICON)hIcon);
-            m_trayIconCurrent = icon;
-            SetIcon(m_trayIconCurrent, tooltip);
-        }
+        // --- Step 5: wxImage → wxBitmap → wxIcon → tray ---
+        wxBitmap bmp(img, 32);
+        wxIcon icon;
+        icon.CopyFromBitmap(bmp);
+        m_trayIconCurrent = icon;
+        SetIcon(m_trayIconCurrent, tooltip);
     }
 #else
     // Linux/generic fallback: simple wxWidgets bitmap icon
@@ -489,29 +471,36 @@ wxMenu* SprintToolBoxApp::CreatePopupMenu() {
 
 void SprintToolBoxApp::OnTaskBarClick(wxTaskBarIconEvent& event) {
 #ifdef _WIN32
-    // On Windows, manually show the menu with foreground thread fix
     ShowContextMenu();
 #elif defined(__WXGTK__)
-    // On Linux/GTK, only handle left-click here (CreatePopupMenu handles right-click)
-    if (event.GetEventType() == wxEVT_TASKBAR_LEFT_UP || 
-        event.GetEventType() == wxEVT_TASKBAR_LEFT_DOWN) {
-        ShowContextMenu();
-    }
+    ShowContextMenu();
 #endif
-    // On macOS, CreatePopupMenu() handles everything
+    // On macOS, CreatePopupMenu() handles everything — this handler is a no-op.
 }
 
 void SprintToolBoxApp::ShowContextMenu() {
+    // Guard against re-entrant calls (DOWN+UP, rapid double-click, etc.)
+    if (m_menuShowing) return;
+    m_menuShowing = true;
+
     wxMenu* menu = BuildPopupMenu();
-    if (!menu) return;
+    if (!menu) { m_menuShowing = false; return; }
+
+    // Pause timers that trigger synchronous HTTP so they can't block
+    // the main thread while the popup is visible.
+    bool sprintWasRunning = m_sprintUpdateTimer && m_sprintUpdateTimer->IsRunning();
+    bool configWasRunning = m_configWatchTimer  && m_configWatchTimer->IsRunning();
+    bool retryWasRunning  = m_retryTimer        && m_retryTimer->IsRunning();
+    bool fallbackWasRunning = m_fallbackTimer    && m_fallbackTimer->IsRunning();
+    if (sprintWasRunning)   m_sprintUpdateTimer->Stop();
+    if (configWasRunning)   m_configWatchTimer->Stop();
+    if (retryWasRunning)    m_retryTimer->Stop();
+    if (fallbackWasRunning) m_fallbackTimer->Stop();
 
 #ifdef _WIN32
     // KB Q135788 – TrackPopupMenu requires the owner window to be the
-    // foreground window.  wxTaskBarIcon::PopupMenu() calls
-    // SetForegroundWindow internally, but that API can silently fail if
-    // another thread/process owns the foreground lock.  Temporarily
-    // attaching our thread input to the foreground thread lets
-    // SetForegroundWindow succeed reliably.
+    // foreground window.  Temporarily attach our thread input to the
+    // current foreground thread so SetForegroundWindow succeeds.
     HWND fgWnd = ::GetForegroundWindow();
     DWORD fgThread = fgWnd ? ::GetWindowThreadProcessId(fgWnd, NULL) : 0;
     DWORD myThread = ::GetCurrentThreadId();
@@ -524,12 +513,19 @@ void SprintToolBoxApp::ShowContextMenu() {
     PopupMenu(menu);
 
 #ifdef _WIN32
-    if (attached) {
+    if (attached)
         ::AttachThreadInput(fgThread, myThread, FALSE);
-    }
 #endif
 
     delete menu;
+
+    // Restart timers that were running before the popup.
+    if (sprintWasRunning)   m_sprintUpdateTimer->Start(SPRINT_UPDATE_INTERVAL_MS);
+    if (configWasRunning)   m_configWatchTimer->Start(10000);
+    if (retryWasRunning)    m_retryTimer->Start();     // resumes with remaining interval
+    if (fallbackWasRunning) m_fallbackTimer->Start();
+
+    m_menuShowing = false;
 }
 
 wxMenu* SprintToolBoxApp::BuildPopupMenu() {
