@@ -32,6 +32,30 @@ mkdir -p "$STAGE_DIR"
 cp "$EXE" "$STAGE_DIR/"
 cp "$SCRIPT_DIR/SprintToolBox.ini" "$STAGE_DIR/SprintToolBox.ini"
 
+# Add autostart scripts
+cp "$SCRIPT_DIR/setup_autostart_win.vbs" "$STAGE_DIR/"
+cp "$SCRIPT_DIR/remove_autostart_win.vbs" "$STAGE_DIR/"
+
+# Create a README for Windows users
+cat > "$STAGE_DIR/README.txt" <<'README'
+SprintToolBox - Sprint Tracking Utility
+========================================
+
+Installation:
+1. Extract all files to a permanent location (e.g., C:\Program Files\SprintToolBox)
+2. Run SprintToolBox.exe
+
+Enable Autostart:
+  Right-click setup_autostart_win.vbs and select "Open" or run:
+    cscript setup_autostart_win.vbs
+
+Disable Autostart:
+  Right-click remove_autostart_win.vbs and select "Open" or run:
+    cscript remove_autostart_win.vbs
+
+The application runs in the system tray.
+README
+
 # ── 3. Collect DLLs (exclude Windows system DLLs) ────────────────────────────
 echo "==> Collecting DLLs..."
 ldd "$EXE" \
