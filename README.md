@@ -2,7 +2,7 @@
 
 This project is a system tray application built using wxWidgets, designed as a DT helper tool. It locks shortcuts and features in system tray. Remains in dock as a current sprint number. 
 
-Download your ready binaries from [Releases](https://github.com/breakpl/stb/releases/tag/v1.0.7)
+Download your ready binaries from [Releases](https://github.com/breakpl/stb/releases/tag/v1.0.8)
 
 or
 
