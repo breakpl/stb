@@ -56,6 +56,50 @@ echo "If the app doesn't open, go to:"
 echo "  System Settings → Privacy & Security → scroll down → click 'Open Anyway'"
 echo ""
 
+# ── Setup autostart ───────────────────────────────────────────────────────────
+read -p "Enable autostart at login? [Y/n] " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+    LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
+    PLIST_NAME="com.sprinttoolbox.plist"
+    PLIST_SRC="$SCRIPT_DIR/$PLIST_NAME"
+    PLIST_DEST="$LAUNCH_AGENTS_DIR/$PLIST_NAME"
+    
+    mkdir -p "$LAUNCH_AGENTS_DIR"
+    
+    # Create plist if it doesn't exist in source
+    if [ ! -f "$PLIST_SRC" ]; then
+        cat > "$PLIST_SRC" <<'PLISTEOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.sprinttoolbox</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Applications/SprintToolBox.app/Contents/MacOS/SprintToolBox</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>
+PLISTEOF
+    fi
+    
+    # Copy and load the launch agent
+    cp "$PLIST_SRC" "$PLIST_DEST"
+    launchctl unload "$PLIST_DEST" 2>/dev/null || true
+    launchctl load "$PLIST_DEST"
+    
+    echo "✓ Autostart enabled - $APP_NAME will launch at login"
+fi
+echo ""
+
 # Offer to launch
 read -p "Launch now? [Y/n] " -n 1 -r
 echo

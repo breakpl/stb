@@ -79,13 +79,11 @@ build_for_arch() {
                  -Wno-dev
     cmake --build . --config Release
 
-    # ── 2. Copy SprintToolBox.ini-example into the bundle Resources ───────────────
+    # ── 2. Copy SprintToolBox.ini into the bundle Resources ───────────────
     local RESOURCES="$APP_BUNDLE/Contents/Resources"
     mkdir -p "$RESOURCES"
-    # Copy SprintToolBox.ini-example as the bundled config (fallback)
-    cp "$SCRIPT_DIR/SprintToolBox.ini-example" "$RESOURCES/SprintToolBox.ini"
-    # Also ship the -example file for reference
-    cp "$SCRIPT_DIR/SprintToolBox.ini-example" "$RESOURCES/SprintToolBox.ini-example"
+    # Copy SprintToolBox.ini as the bundled config
+    cp "$SCRIPT_DIR/SprintToolBox.ini" "$RESOURCES/SprintToolBox.ini"
 
     # ── 3. Bundle dylibs ──────────────────────────────────────────────────────────
     echo "==> Bundling dylibs..."
