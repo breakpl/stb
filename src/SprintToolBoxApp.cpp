@@ -95,6 +95,7 @@ SprintToolBoxApp::SprintToolBoxApp()
     , m_currentIconText("...")
     , m_currentDaysPassed(-1)
     , m_menuShowing(false)
+    , m_useFallbackMode(false)
 #ifdef __WXOSX__
     , m_themeObserver(nullptr)
     , m_statusItem(nullptr)
@@ -684,7 +685,10 @@ void SprintToolBoxApp::OnConfigWatchTimer(wxTimerEvent& event) {
 }
 
 void SprintToolBoxApp::UpdateSprint() {
-    if (m_jiraService) {
+    if (m_useFallbackMode) {
+        // Use public GitHub URL instead of JIRA
+        FetchPublicSprint();
+    } else if (m_jiraService) {
         m_jiraService->ReloadCredentials(); // re-read ini on every tick
         m_jiraService->FetchCurrentSprint();
     }
@@ -736,8 +740,18 @@ void SprintToolBoxApp::OnSprintError(const wxString& error, const wxString& erro
 }
 
 void SprintToolBoxApp::OnFallbackTimer(wxTimerEvent& WXUNUSED(event)) {
-    // Hardcoded public sprint URL
-    wxString publicURL = "https://raw.githubusercontent.com/breakpl/stb/main/current-sprint.json";
+    wxLogMessage("Switching to fallback mode (public GitHub URL)");
+    m_useFallbackMode = true;
+    FetchPublicSprint();
+}
+
+void SprintToolBoxApp::FetchPublicSprint() {
+    // Hardcoded public sprint URL with cache-busting timestamp
+    wxDateTime now = wxDateTime::Now();
+    wxString publicURL = wxString::Format(
+        "https://raw.githubusercontent.com/breakpl/stb/main/current-sprint.json?t=%lld",
+        now.GetValue().GetValue() / 1000
+    );
     
     wxLogMessage("Fetching sprint from public source: %s", publicURL);
     

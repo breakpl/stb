@@ -47,6 +47,7 @@ private:
     
     void UpdateTimestamps();
     void UpdateSprint();
+    void FetchPublicSprint();  // Fetch from GitHub public URL
     void OnSprintFetched(const SprintInfo& sprint);
     void OnSprintError(const wxString& error, const wxString& errorCode);
     
@@ -64,6 +65,7 @@ private:
     wxTimer* m_fallbackTimer;   // delays switch to public sprint fallback
     int      m_retryCount;      // attempts made in current retry window
     int      m_retryMaxCount;   // max attempts before giving up
+    bool     m_useFallbackMode; // true if using public GitHub URL instead of JIRA
 #ifdef __WXOSX__
     void* m_themeObserver;  // NSObject observer for theme changes on macOS
     void* m_statusItem;     // NSStatusItem for direct icon control on macOS
