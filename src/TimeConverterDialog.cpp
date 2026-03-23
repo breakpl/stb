@@ -40,7 +40,7 @@ TimeConverterDialog::TimeConverterDialog(wxWindow* parent)
               0, wxALIGN_CENTER_VERTICAL);
     m_unixField = new wxTextCtrl(this, wxID_ANY, "",
                                   wxDefaultPosition, wxSize(260, -1));
-    m_unixField->SetHint("seconds since epoch");
+    m_unixField->SetHint("seconds or milliseconds");
     grid->Add(m_unixField, 1, wxEXPAND);
 
     mainSizer->Add(grid, 1, wxEXPAND | wxALL, 16);
@@ -188,7 +188,16 @@ void TimeConverterDialog::OnUnixChanged(wxCommandEvent& /*event*/) {
 
     long long val;
     if (text.ToLongLong(&val) && val >= 0) {
-        UpdateFromTimestamp((time_t)val, m_unixField);
+        // Auto-detect milliseconds: if value > 10 billion, assume milliseconds
+        // (10 billion seconds = year 2286, so any larger value is likely milliseconds)
+        time_t ts;
+        if (val > 10000000000LL) {
+            // Convert milliseconds to seconds
+            ts = (time_t)(val / 1000);
+        } else {
+            ts = (time_t)val;
+        }
+        UpdateFromTimestamp(ts, m_unixField);
     } else {
         m_updating = true;
         m_localField->ChangeValue("Invalid");
