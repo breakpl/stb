@@ -39,8 +39,8 @@
 // Constants for menu bar icon
 static const int ICON_FONT_SIZE_MAC = 14;  // SF Mono Regular – sized for attributedTitle
 static const int SPRINT_UPDATE_INTERVAL_MS  = 300000; // 5 minutes
-static const int NETWORK_RETRY_INTERVAL_MS  = 20000;  // 20 s  (window: 2 min)
-static const int NETWORK_RETRY_MAX_COUNT    = 6;      // 6 × 20 s = 2 min
+static const int NETWORK_RETRY_INTERVAL_MS  = 20000;  // 20 s  (window: 5 min)
+static const int NETWORK_RETRY_MAX_COUNT    = 15;     // 15 × 20 s = 5 min
 
 #ifdef _WIN32
 // ── Windows theme-change observer ────────────────────────────────────────────
@@ -72,7 +72,7 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_TIMER(ID_SPRINT_TIMER, SprintToolBoxApp::OnSprintUpdateTimer)
     EVT_TIMER(ID_RETRY_TIMER,  SprintToolBoxApp::OnRetryTimer)
     EVT_TIMER(ID_CONFIG_WATCH_TIMER, SprintToolBoxApp::OnConfigWatchTimer)
-    EVT_TIMER(ID_FALLBACK_TIMER, SprintToolBoxApp::OnFallbackTimer)
+
     EVT_MENU_RANGE(ID_DYNAMIC_MENU_START, ID_DYNAMIC_MENU_START + 999, SprintToolBoxApp::OnDynamicMenuClick)
     EVT_TASKBAR_LEFT_UP(SprintToolBoxApp::OnTaskBarClick)
 #ifdef _WIN32
@@ -89,7 +89,7 @@ SprintToolBoxApp::SprintToolBoxApp()
     , m_sprintUpdateTimer(nullptr)
     , m_configWatchTimer(nullptr)
     , m_retryTimer(nullptr)
-    , m_fallbackTimer(nullptr)
+
     , m_retryCount(0)
     , m_retryMaxCount(0)
     , m_currentIconText("...")
@@ -123,8 +123,6 @@ SprintToolBoxApp::SprintToolBoxApp()
     // Retry timer (started on demand when a transient error occurs)
     m_retryTimer = new wxTimer(this, ID_RETRY_TIMER);
 
-    // Fallback timer (delays switch to public sprint source after AUTH_ERROR)
-    m_fallbackTimer = new wxTimer(this, ID_FALLBACK_TIMER);
 
     // Config-file watcher: poll the INI modification time every 10 s so
     // that credential / setting changes are picked up promptly.
@@ -214,12 +212,6 @@ SprintToolBoxApp::~SprintToolBoxApp() {
         m_retryTimer = nullptr;
     }
 
-    if (m_fallbackTimer) {
-        m_fallbackTimer->Stop();
-        delete m_fallbackTimer;
-        m_fallbackTimer = nullptr;
-    }
-    
     if (m_jiraService) {
         delete m_jiraService;
         m_jiraService = nullptr;
@@ -492,11 +484,11 @@ void SprintToolBoxApp::ShowContextMenu() {
     bool sprintWasRunning = m_sprintUpdateTimer && m_sprintUpdateTimer->IsRunning();
     bool configWasRunning = m_configWatchTimer  && m_configWatchTimer->IsRunning();
     bool retryWasRunning  = m_retryTimer        && m_retryTimer->IsRunning();
-    bool fallbackWasRunning = m_fallbackTimer    && m_fallbackTimer->IsRunning();
+
     if (sprintWasRunning)   m_sprintUpdateTimer->Stop();
     if (configWasRunning)   m_configWatchTimer->Stop();
     if (retryWasRunning)    m_retryTimer->Stop();
-    if (fallbackWasRunning) m_fallbackTimer->Stop();
+
 
 #ifdef _WIN32
     // KB Q135788 – TrackPopupMenu requires the owner window to be the
@@ -524,7 +516,7 @@ void SprintToolBoxApp::ShowContextMenu() {
     if (sprintWasRunning)   m_sprintUpdateTimer->Start(SPRINT_UPDATE_INTERVAL_MS);
     if (configWasRunning)   m_configWatchTimer->Start(10000);
     if (retryWasRunning)    m_retryTimer->Start();     // resumes with remaining interval
-    if (fallbackWasRunning) m_fallbackTimer->Start();
+
 
     m_menuShowing = false;
 }
@@ -725,25 +717,15 @@ void SprintToolBoxApp::OnSprintError(const wxString& error, const wxString& erro
             m_retryTimer->Start(NETWORK_RETRY_INTERVAL_MS);
         }
     } else if (errorCode == "AUTH_ERROR" || errorCode == "NOT_CONFIGURED") {
-        // Show "not configured" message for 5 seconds before trying fallback
         UpdateTrayIcon("?");
-        
-        // Start fallback timer to switch to public sprint source after 5 seconds
-        if (m_fallbackTimer && !m_fallbackTimer->IsRunning()) {
-            m_fallbackTimer->StartOnce(5000);  // 5 seconds
-        }
-        
-        wxLogWarning("Authentication failed or not configured. Will try public fallback in 5 seconds.");
+        wxLogWarning("Authentication failed or not configured. Switching to public fallback.");
+        m_useFallbackMode = true;
+        FetchPublicSprint();
     } else {
         UpdateTrayIcon(errorCode);
     }
 }
 
-void SprintToolBoxApp::OnFallbackTimer(wxTimerEvent& WXUNUSED(event)) {
-    wxLogMessage("Switching to fallback mode (public GitHub URL)");
-    m_useFallbackMode = true;
-    FetchPublicSprint();
-}
 
 void SprintToolBoxApp::FetchPublicSprint() {
     // Hardcoded public sprint URL with cache-busting timestamp

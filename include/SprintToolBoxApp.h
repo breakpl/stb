@@ -42,7 +42,7 @@ private:
     void OnSprintUpdateTimer(wxTimerEvent& event);
     void OnRetryTimer(wxTimerEvent& event);
     void OnConfigWatchTimer(wxTimerEvent& event);
-    void OnFallbackTimer(wxTimerEvent& event);
+
     void OnDynamicMenuClick(wxCommandEvent& event);
     
     void UpdateTimestamps();
@@ -62,7 +62,7 @@ private:
     wxTimer* m_sprintUpdateTimer;
     wxTimer* m_configWatchTimer; // polls INI modification time
     wxTimer* m_retryTimer;      // active during error back-off
-    wxTimer* m_fallbackTimer;   // delays switch to public sprint fallback
+
     int      m_retryCount;      // attempts made in current retry window
     int      m_retryMaxCount;   // max attempts before giving up
     bool     m_useFallbackMode; // true if using public GitHub URL instead of JIRA
@@ -88,7 +88,7 @@ enum {
     ID_SPRINT_TIMER,
     ID_RETRY_TIMER,
     ID_CONFIG_WATCH_TIMER,
-    ID_FALLBACK_TIMER,
+
     ID_DYNAMIC_MENU_START = wxID_HIGHEST + 1000  // Base ID for dynamic menu items
 };
 
