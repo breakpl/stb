@@ -672,6 +672,7 @@ void SprintToolBoxApp::OnRetryTimer(wxTimerEvent& event) {
 void SprintToolBoxApp::OnConfigWatchTimer(wxTimerEvent& event) {
     if (Config::GetInstance().HasConfigFileChanged()) {
         wxLogMessage("Config file changed on disk – reloading.");
+        Config::GetInstance().Reload();
         UpdateSprint();
     }
 }
