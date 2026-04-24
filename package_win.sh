@@ -15,7 +15,8 @@ STAGE_DIR="$DIST_DIR/SprintToolBox"
 APP_NAME="SprintToolBox"
 EXE="$BUILD_DIR/$APP_NAME.exe"
 
-VERSION=$(git describe --tags --abbrev=0 2>/dev/null); VERSION="${VERSION#v}"; [ -z "$VERSION" ] && VERSION="1.0.0"
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+VERSION="${VERSION#v}"
 DATE=$(date +%Y%m%d)
 OUT_EXE="${APP_NAME}-${VERSION}-${DATE}-windows-x86_64.exe"
 
