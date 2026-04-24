@@ -15,7 +15,7 @@ STAGE_DIR="$DIST_DIR/SprintToolBox"
 APP_NAME="SprintToolBox"
 EXE="$BUILD_DIR/$APP_NAME.exe"
 
-VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.0")
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null); VERSION="${VERSION#v}"; [ -z "$VERSION" ] && VERSION="1.0.0"
 DATE=$(date +%Y%m%d)
 OUT_EXE="${APP_NAME}-${VERSION}-${DATE}-windows-x86_64.exe"
 
@@ -50,14 +50,15 @@ echo "==> Building installer..."
 mkdir -p "$DIST_DIR"
 cd "$SCRIPT_DIR"
 
-# Convert STAGE_DIR to Windows path for NSIS
+# Convert paths to Windows format for NSIS
 STAGE_WIN=$(cygpath -w "$STAGE_DIR")
+DIST_WIN=$(cygpath -w "$DIST_DIR")
 
 makensis \
     -DAPP_VERSION="$VERSION" \
     -DBUILD_DATE="$DATE" \
     -DSTAGE_DIR="$STAGE_WIN" \
-    -DOUT_FILE="$DIST_DIR/$OUT_EXE" \
+    -DOUT_DIR="$DIST_WIN" \
     installer.nsi
 
 echo ""

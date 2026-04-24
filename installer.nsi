@@ -20,7 +20,10 @@ Unicode True
 !define INST_DIR        "$PROGRAMFILES64\${APP_NAME}"
 !define REG_UNINSTALL   "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 !define REG_RUN         "Software\Microsoft\Windows\CurrentVersion\Run"
-!define OUT_FILE        "SprintToolBox-${APP_VERSION}-${BUILD_DATE}-windows-x86_64.exe"
+!ifndef OUT_DIR
+  !define OUT_DIR "."
+!endif
+!define OUT_FILE "${OUT_DIR}\SprintToolBox-${APP_VERSION}-${BUILD_DATE}-windows-x86_64.exe"
 
 ;------------------------------------------------------------------------------
 ; General settings
