@@ -114,14 +114,13 @@ for DYLIB in "$FRAMEWORKS"/*.dylib; do
     [ -f "$DYLIB" ] || continue
     DYLIB_NAME="$(basename "$DYLIB")"
     while IFS= read -r RAW_LINE; do
-        local DEP DEP_NAME
         DEP="$(echo "$RAW_LINE" | awk '{print $1}')"
         [ -z "$DEP" ] && continue
         DEP_NAME="$(basename "$DEP")"
         [ "$DEP_NAME" = "$DYLIB_NAME" ] && continue
         if [[ "$DEP" == @rpath/* ]] || [[ "$DEP" == @loader_path/* ]]; then
             if [ ! -f "$FRAMEWORKS/$DEP_NAME" ]; then
-                local FOUND="$HOMEBREW_PREFIX/lib/$DEP_NAME"
+                FOUND="$HOMEBREW_PREFIX/lib/$DEP_NAME"
                 [ ! -e "$FOUND" ] && FOUND="$(find "$HOMEBREW_PREFIX/opt" -name "$DEP_NAME" -maxdepth 5 2>/dev/null | head -1)"
                 [ -e "$FOUND" ] && bundle_dylib "$FOUND"
             fi
