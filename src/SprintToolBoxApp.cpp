@@ -178,6 +178,8 @@ SprintToolBoxApp::SprintToolBoxApp()
 SprintToolBoxApp::~SprintToolBoxApp() {
 #ifdef __WXOSX__
     if (m_statusItem) {
+        NSStatusItem* item = (__bridge NSStatusItem*)m_statusItem;
+        [[NSStatusBar systemStatusBar] removeStatusItem:item];
         (void)CFBridgingRelease(m_statusItem);
         m_statusItem = nullptr;
     }
@@ -652,6 +654,17 @@ void SprintToolBoxApp::OnDynamicMenuClick(wxCommandEvent& event) {
 }
 
 void SprintToolBoxApp::OnQuit(wxCommandEvent& event) {
+#ifdef __WXOSX__
+    // Explicitly remove the NSStatusItem from the menu bar before shutdown.
+    // Without this, the icon lingers as a ghost after exit() tears the process down
+    // without going through the full Cocoa shutdown sequence.
+    if (m_statusItem) {
+        NSStatusItem* item = (__bridge NSStatusItem*)m_statusItem;
+        [[NSStatusBar systemStatusBar] removeStatusItem:item];
+        (void)CFBridgingRelease(m_statusItem);
+        m_statusItem = nullptr;
+    }
+#endif
     RemoveIcon();
     wxExit();
 }
