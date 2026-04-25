@@ -691,9 +691,15 @@ void SprintToolBoxApp::OnQuit(wxCommandEvent& event) {
         (void)CFBridgingRelease(m_statusItemHandler);
         m_statusItemHandler = nullptr;
     }
-#endif
+    RemoveIcon();
+    // Defer wxExit() so it runs after popUpMenuPositioningItem's modal loop
+    // has returned to the main run loop. Calling [NSApp terminate:nil] (which
+    // wxExit() uses) from inside a modal event loop is silently ignored on macOS.
+    CallAfter([]() { wxExit(); });
+#else
     RemoveIcon();
     wxExit();
+#endif
 }
 
 bool SprintToolBoxApp::IsAutostartEnabled() {
