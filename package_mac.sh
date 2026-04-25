@@ -206,19 +206,21 @@ PLIST_CONTENT='<?xml version="1.0" encoding="UTF-8"?>
 # Embed the plist as a base64 blob so the postinstall script has no heredoc dependency.
 PLIST_B64=$(printf '%s' "$PLIST_CONTENT" | base64)
 
+# postinstall receives $2 = install target (/ for system, $HOME for user home).
+# Never exit non-zero — macOS rolls back the payload on script failure.
 cat > "$SCRIPTS_DIR/postinstall" << POSTINSTALL_EOF
 #!/bin/bash
-set -e
 
-# Find the logged-in console user (the one who launched the installer).
+INSTALL_TARGET="\${2:-/}"
+APP_BIN="\${INSTALL_TARGET%/}/Applications/SprintToolBox.app/Contents/MacOS/SprintToolBox"
+
 CONSOLE_USER=\$(stat -f "%Su" /dev/console 2>/dev/null || true)
 if [ -z "\$CONSOLE_USER" ] || [ "\$CONSOLE_USER" = "root" ]; then exit 0; fi
 
 USER_UID=\$(id -u "\$CONSOLE_USER" 2>/dev/null || true)
-USER_HOME=\$(dscl . -read "/Users/\$CONSOLE_USER" NFSHomeDirectory 2>/dev/null | awk '{print \$2}')
+USER_HOME=\$(dscl . -read "/Users/\$CONSOLE_USER" NFSHomeDirectory 2>/dev/null | awk '{print \$2}' || true)
 if [ -z "\$USER_HOME" ]; then exit 0; fi
 
-# Show a native dialog asking about autostart.
 RESPONSE=\$(launchctl asuser "\$USER_UID" sudo -u "\$CONSOLE_USER" \
     osascript -e 'display dialog "Start SprintToolBox automatically when you log in?" buttons {"No", "Yes"} default button "Yes" with icon note with title "SprintToolBox"' \
     2>/dev/null || echo "button returned:No")
@@ -226,18 +228,20 @@ RESPONSE=\$(launchctl asuser "\$USER_UID" sudo -u "\$CONSOLE_USER" \
 if echo "\$RESPONSE" | grep -q "Yes"; then
     LAUNCH_AGENTS="\$USER_HOME/Library/LaunchAgents"
     PLIST_PATH="\$LAUNCH_AGENTS/com.sprinttoolbox.plist"
-    mkdir -p "\$LAUNCH_AGENTS"
-    printf '%s' "${PLIST_B64}" | base64 --decode > "\$PLIST_PATH"
-    chown "\$CONSOLE_USER" "\$PLIST_PATH"
+    mkdir -p "\$LAUNCH_AGENTS" 2>/dev/null || true
+    printf '%s' "${PLIST_B64}" | base64 --decode | \
+        sed "s|/Applications/SprintToolBox.app/Contents/MacOS/SprintToolBox|\$APP_BIN|" \
+        > "\$PLIST_PATH" 2>/dev/null || true
+    chown "\$CONSOLE_USER" "\$PLIST_PATH" 2>/dev/null || true
     launchctl asuser "\$USER_UID" sudo -u "\$CONSOLE_USER" \
         launchctl load "\$PLIST_PATH" 2>/dev/null || true
-    echo "Autostart enabled."
 fi
+exit 0
 POSTINSTALL_EOF
 
 chmod 755 "$SCRIPTS_DIR/postinstall"
 
-# Build the component package
+# Component package (payload + scripts)
 pkgbuild \
     --root "$PKG_ROOT" \
     --identifier "$BUNDLE_ID" \
@@ -246,12 +250,14 @@ pkgbuild \
     --scripts "$SCRIPTS_DIR" \
     "$PKG_WORK/component.pkg"
 
-# Wrap in a distribution package (adds welcome/licence pages and proper title)
+# Distribution XML — enables system (/Applications) and user-home (~/Applications)
+# installation so the user can choose during the installer wizard.
 cat > "$PKG_WORK/distribution.xml" << DIST_EOF
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
     <title>SprintToolBox ${VERSION}</title>
-    <options hostArchitectures="arm64" customize="never" require-scripts="false"/>
+    <options customize="never" require-scripts="false"/>
+    <domains enable_localSystem="true" enable_currentUserHome="true"/>
     <choices-outline>
         <line choice="default"/>
     </choices-outline>
