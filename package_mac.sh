@@ -213,7 +213,7 @@ PLIST_B64=$(printf '%s' "$PLIST_CONTENT" | base64)
 cat > "$SCRIPTS_DIR/postinstall" << POSTINSTALL_EOF
 #!/bin/bash
 
-# $2 = the folder the user chose (e.g. /Applications, $HOME, $HOME/tools).
+# \$2 = the folder the user chose (e.g. /Applications, \$HOME, \$HOME/tools).
 # The app bundle lands directly in that folder.
 INSTALL_TARGET="\${2:-/Applications}"
 APP_BIN="\${INSTALL_TARGET%/}/SprintToolBox.app/Contents/MacOS/SprintToolBox"
