@@ -23,15 +23,17 @@ public:
     
     // Create the popup menu (returns nullptr – we handle popup via OnTaskBarClick)
     virtual wxMenu* CreatePopupMenu() override;
-    
+
     // Public for theme change observer access
     void UpdateTrayIcon(const wxString& text, int daysPassed = -1);
-    wxString m_currentIconText;  // Store current icon text for theme change updates
+    wxString m_currentIconText;
     int m_currentDaysPassed;
-    
+
+    // Public so the macOS click handler can call it
+    void ShowContextMenu();
+
 private:
     void OnTaskBarClick(wxTaskBarIconEvent& event);
-    void ShowContextMenu();
     wxMenu* BuildPopupMenu();
 
     void OnCopyUnixTimestamp(wxCommandEvent& event);
@@ -44,7 +46,11 @@ private:
     void OnConfigWatchTimer(wxTimerEvent& event);
 
     void OnDynamicMenuClick(wxCommandEvent& event);
-    
+    void OnToggleAutostart(wxCommandEvent& event);
+
+    bool IsAutostartEnabled();
+    void SetAutostart(bool enable);
+
     void UpdateTimestamps();
     void UpdateSprint();
     void FetchPublicSprint();  // Fetch from GitHub public URL
@@ -67,8 +73,9 @@ private:
     int      m_retryMaxCount;   // max attempts before giving up
     bool     m_useFallbackMode; // true if using public GitHub URL instead of JIRA
 #ifdef __WXOSX__
-    void* m_themeObserver;  // NSObject observer for theme changes on macOS
-    void* m_statusItem;     // NSStatusItem for direct icon control on macOS
+    void* m_themeObserver;      // NSObject for theme change notifications
+    void* m_statusItem;         // NSStatusItem (owned by us, not by wxWidgets)
+    void* m_statusItemHandler;  // StatusItemClickHandler target for the button
 #endif
 #ifdef _WIN32
     HWND m_themeHwnd;       // Hidden window for WM_SETTINGCHANGE on Windows
@@ -88,6 +95,8 @@ enum {
     ID_SPRINT_TIMER,
     ID_RETRY_TIMER,
     ID_CONFIG_WATCH_TIMER,
+
+    ID_TOGGLE_AUTOSTART,
 
     ID_DYNAMIC_MENU_START = wxID_HIGHEST + 1000  // Base ID for dynamic menu items
 };

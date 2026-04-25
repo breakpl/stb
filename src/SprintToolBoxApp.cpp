@@ -7,6 +7,9 @@
 #include <wx/datetime.h>
 #include <wx/icon.h>
 #include <wx/bitmap.h>
+#include <wx/stdpaths.h>
+#include <wx/filename.h>
+#include <wx/file.h>
 #include <curl/curl.h>
 #include <string>
 
@@ -20,17 +23,26 @@
 #import <Cocoa/Cocoa.h>
 #import <objc/runtime.h>
 
-// Helper to observe theme changes
+// Observes system theme changes and forwards them to the C++ owner.
 @interface ThemeChangeObserver : NSObject
 @property (assign) SprintToolBoxApp* owner;
 @end
 
 @implementation ThemeChangeObserver
 - (void)themeChanged:(NSNotification*)notification {
-    if (self.owner) {
-        // Trigger icon update when theme changes
+    if (self.owner)
         self.owner->UpdateTrayIcon(self.owner->m_currentIconText, self.owner->m_currentDaysPassed);
-    }
+}
+@end
+
+// Receives NSStatusItem button clicks and forwards them to ShowContextMenu().
+@interface StatusItemClickHandler : NSObject
+@property (assign) SprintToolBoxApp* owner;
+@end
+
+@implementation StatusItemClickHandler
+- (void)clicked:(id)sender {
+    if (self.owner) self.owner->ShowContextMenu();
 }
 @end
 
@@ -69,12 +81,16 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_MENU(ID_OPEN_CONVERTER, SprintToolBoxApp::OnOpenConverter)
     EVT_MENU(ID_OPEN_TIME_CONVERTER, SprintToolBoxApp::OnOpenTimeConverter)
     EVT_MENU(ID_QUIT, SprintToolBoxApp::OnQuit)
+    EVT_MENU(ID_TOGGLE_AUTOSTART, SprintToolBoxApp::OnToggleAutostart)
     EVT_TIMER(ID_SPRINT_TIMER, SprintToolBoxApp::OnSprintUpdateTimer)
     EVT_TIMER(ID_RETRY_TIMER,  SprintToolBoxApp::OnRetryTimer)
     EVT_TIMER(ID_CONFIG_WATCH_TIMER, SprintToolBoxApp::OnConfigWatchTimer)
 
     EVT_MENU_RANGE(ID_DYNAMIC_MENU_START, ID_DYNAMIC_MENU_START + 999, SprintToolBoxApp::OnDynamicMenuClick)
+    // macOS clicks are routed through StatusItemClickHandler; only Linux/Windows need this.
+#ifndef __WXOSX__
     EVT_TASKBAR_LEFT_UP(SprintToolBoxApp::OnTaskBarClick)
+#endif
 #ifdef _WIN32
     EVT_TASKBAR_RIGHT_UP(SprintToolBoxApp::OnTaskBarClick)
 #endif
@@ -99,6 +115,7 @@ SprintToolBoxApp::SprintToolBoxApp()
 #ifdef __WXOSX__
     , m_themeObserver(nullptr)
     , m_statusItem(nullptr)
+    , m_statusItemHandler(nullptr)
 #endif
 #ifdef _WIN32
     , m_themeHwnd(nullptr)
@@ -174,10 +191,17 @@ SprintToolBoxApp::SprintToolBoxApp()
 SprintToolBoxApp::~SprintToolBoxApp() {
 #ifdef __WXOSX__
     if (m_statusItem) {
+        NSStatusItem* item = (__bridge NSStatusItem*)m_statusItem;
+        [[NSStatusBar systemStatusBar] removeStatusItem:item];
         (void)CFBridgingRelease(m_statusItem);
         m_statusItem = nullptr;
     }
-    
+
+    if (m_statusItemHandler) {
+        (void)CFBridgingRelease(m_statusItemHandler);
+        m_statusItemHandler = nullptr;
+    }
+
     if (m_themeObserver) {
         ThemeChangeObserver* observer = (__bridge ThemeChangeObserver*)m_themeObserver;
         [[NSDistributedNotificationCenter defaultCenter] removeObserver:observer];
@@ -243,28 +267,22 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
             tooltip += wxString::Format(" (Day %d)", daysPassed);
         }
         
-        // On first call, we need SetIcon to let wxTaskBarIcon create its NSStatusItem
+        // First call: create our own NSStatusItem directly.
+        // The old approach used SetIcon() + a private KVC valueForKey:@"statusItems"
+        // lookup which stopped working on macOS 15 (Sequoia).
         if (!m_statusItem) {
-            // Create a tiny 1x1 transparent wxBitmap to bootstrap the status item
-            wxBitmap bmp(1, 1, 32);
-            wxMemoryDC dc;
-            dc.SelectObject(bmp);
-            dc.SetBackground(*wxTRANSPARENT_BRUSH);
-            dc.Clear();
-            dc.SelectObject(wxNullBitmap);
-            wxIcon icon;
-            icon.CopyFromBitmap(bmp);
-            SetIcon(icon, tooltip);
-            
-            // Find our status item by tooltip using KVC
-            NSString* nsTooltip = [NSString stringWithUTF8String:tooltip.utf8_str()];
-            NSArray* items = [[NSStatusBar systemStatusBar] valueForKey:@"statusItems"];
-            for (NSStatusItem* item in items) {
-                if (item.button && [item.button.toolTip isEqualToString:nsTooltip]) {
-                    m_statusItem = (void*)CFBridgingRetain(item);
-                    break;
-                }
-            }
+            StatusItemClickHandler* handler = [[StatusItemClickHandler alloc] init];
+            handler.owner = this;
+            m_statusItemHandler = (void*)CFBridgingRetain(handler);
+
+            NSStatusItem* item = [[NSStatusBar systemStatusBar]
+                                  statusItemWithLength:NSVariableStatusItemLength];
+            item.button.target  = handler;
+            item.button.action  = @selector(clicked:);
+            // Trigger on both mouse buttons so right-click also shows the menu.
+            [item.button sendActionOn:NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp];
+
+            m_statusItem = (void*)CFBridgingRetain(item);
         }
         
         NSStatusItem* targetItem = m_statusItem ? (__bridge NSStatusItem*)m_statusItem : nil;
@@ -448,10 +466,9 @@ void SprintToolBoxApp::UpdateTimestamps() {
 
 wxMenu* SprintToolBoxApp::CreatePopupMenu() {
 #ifdef __WXOSX__
-    // On macOS, wxTaskBarIcon calls CreatePopupMenu() internally when the
-    // status item is clicked.  EVT_TASKBAR_LEFT_UP / RIGHT_UP are NOT fired,
-    // so we must return the menu here for it to appear.
-    return BuildPopupMenu();
+    // On macOS we own the NSStatusItem directly and show the menu from
+    // ShowContextMenu(), so wxWidgets never needs to call this.
+    return nullptr;
 #elif defined(__WXGTK__)
     // On Linux/GTK, CreatePopupMenu() is called for right-click by default
     return BuildPopupMenu();
@@ -503,7 +520,27 @@ void SprintToolBoxApp::ShowContextMenu() {
     }
 #endif
 
+#ifdef __WXOSX__
+    // Use native Cocoa popup anchored below our NSStatusItem button.
+    // popUpMenuPositioningItem: is synchronous – it blocks until dismissed.
+    if (m_statusItem) {
+        NSStatusItem* nsItem = (__bridge NSStatusItem*)m_statusItem;
+        // GetHMenu() returns the underlying NSMenu* that wxWidgets built.
+        NSMenu* nsMenu = (__bridge NSMenu*)(void*)menu->GetHMenu();
+        if (nsMenu) {
+            // Without this, clickedAction: dispatches wxCommandEvent to the
+            // wxMenu itself, which has no handler table.  Setting us as the
+            // next handler in the chain lets the event reach our event table.
+            menu->SetNextHandler(this);
+            [nsMenu popUpMenuPositioningItem:nil
+                                  atLocation:NSMakePoint(0, nsItem.button.bounds.size.height)
+                                      inView:nsItem.button];
+            menu->SetNextHandler(nullptr);
+        }
+    }
+#else
     PopupMenu(menu);
+#endif
 
 #ifdef _WIN32
     if (attached)
@@ -590,8 +627,10 @@ wxMenu* SprintToolBoxApp::BuildPopupMenu() {
     }
     
     menu->AppendSeparator();
-    
-    // Quit
+
+    wxMenuItem* autostartItem = menu->AppendCheckItem(ID_TOGGLE_AUTOSTART, "Start at login");
+    autostartItem->Check(IsAutostartEnabled());
+
     menu->Append(ID_QUIT, "Quit");
     
     return menu;
@@ -646,8 +685,125 @@ void SprintToolBoxApp::OnDynamicMenuClick(wxCommandEvent& event) {
 }
 
 void SprintToolBoxApp::OnQuit(wxCommandEvent& event) {
+#ifdef __WXOSX__
+    RemoveIcon();
+    // Defer NSStatusItem removal and wxExit so they run after
+    // popUpMenuPositioningItem's modal loop ends.  Removing the status item
+    // while its menu is still displayed crashes, and [NSApp terminate:nil]
+    // is silently dropped inside a modal event loop.
+    CallAfter([this]() {
+        if (m_statusItem) {
+            NSStatusItem* item = (__bridge NSStatusItem*)m_statusItem;
+            [[NSStatusBar systemStatusBar] removeStatusItem:item];
+            (void)CFBridgingRelease(m_statusItem);
+            m_statusItem = nullptr;
+        }
+        if (m_statusItemHandler) {
+            (void)CFBridgingRelease(m_statusItemHandler);
+            m_statusItemHandler = nullptr;
+        }
+        wxExit();
+    });
+#else
     RemoveIcon();
     wxExit();
+#endif
+}
+
+bool SprintToolBoxApp::IsAutostartEnabled() {
+#ifdef __WXOSX__
+    NSString* plistPath = [[NSHomeDirectory()
+        stringByAppendingPathComponent:@"Library/LaunchAgents"]
+        stringByAppendingPathComponent:@"com.sprinttoolbox.plist"];
+    return [[NSFileManager defaultManager] fileExistsAtPath:plistPath];
+#elif defined(_WIN32)
+    HKEY key;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER,
+                      L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                      0, KEY_READ, &key) != ERROR_SUCCESS)
+        return false;
+    DWORD size = 0;
+    bool found = RegQueryValueExW(key, L"SprintToolBox", nullptr,
+                                  nullptr, nullptr, &size) == ERROR_SUCCESS;
+    RegCloseKey(key);
+    return found;
+#else
+    return wxFileExists(wxGetHomeDir() + "/.config/autostart/sprinttoolbox.desktop");
+#endif
+}
+
+void SprintToolBoxApp::SetAutostart(bool enable) {
+#ifdef __WXOSX__
+    NSString* laDir = [NSHomeDirectory()
+        stringByAppendingPathComponent:@"Library/LaunchAgents"];
+    NSString* plistPath = [laDir
+        stringByAppendingPathComponent:@"com.sprinttoolbox.plist"];
+    if (enable) {
+        wxString exePath = wxStandardPaths::Get().GetExecutablePath();
+        NSString* exe = [NSString stringWithUTF8String:exePath.utf8_str()];
+        NSDictionary* plist = @{
+            @"Label": @"com.sprinttoolbox",
+            @"ProgramArguments": @[exe],
+            @"RunAtLoad": @YES,
+            @"KeepAlive": @NO,
+            @"ProcessType": @"Interactive"
+        };
+        NSError* err = nil;
+        [[NSFileManager defaultManager] createDirectoryAtPath:laDir
+            withIntermediateDirectories:YES attributes:nil error:&err];
+        NSData* data = [NSPropertyListSerialization
+            dataWithPropertyList:plist
+            format:NSPropertyListXMLFormat_v1_0
+            options:0 error:&err];
+        if (data)
+            [data writeToFile:plistPath options:NSDataWritingAtomic error:&err];
+    } else {
+        [[NSFileManager defaultManager] removeItemAtPath:plistPath error:nil];
+    }
+#elif defined(_WIN32)
+    HKEY key;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER,
+                      L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                      0, KEY_SET_VALUE, &key) != ERROR_SUCCESS)
+        return;
+    if (enable) {
+        wxString exePath = wxStandardPaths::Get().GetExecutablePath();
+        wxString quoted = wxString("\"") + exePath + wxString("\"");
+        std::wstring wval = quoted.ToStdWstring();
+        RegSetValueExW(key, L"SprintToolBox", 0, REG_SZ,
+            reinterpret_cast<const BYTE*>(wval.c_str()),
+            static_cast<DWORD>((wval.size() + 1) * sizeof(wchar_t)));
+    } else {
+        RegDeleteValueW(key, L"SprintToolBox");
+    }
+    RegCloseKey(key);
+#else
+    wxString autoDir = wxGetHomeDir() + "/.config/autostart";
+    wxString desktopPath = autoDir + "/sprinttoolbox.desktop";
+    if (enable) {
+        wxFileName::Mkdir(autoDir, 0755, wxPATH_MKDIR_FULL);
+        wxFile f(desktopPath, wxFile::write);
+        if (f.IsOpened()) {
+            wxString exe = wxStandardPaths::Get().GetExecutablePath();
+            f.Write(wxString::Format(
+                "[Desktop Entry]\n"
+                "Type=Application\n"
+                "Name=SprintToolBox\n"
+                "Comment=Sprint tracking tray utility\n"
+                "Exec=%s\n"
+                "Icon=utilities-system-monitor\n"
+                "StartupNotify=false\n"
+                "X-GNOME-Autostart-enabled=true\n",
+                exe));
+        }
+    } else {
+        wxRemoveFile(desktopPath);
+    }
+#endif
+}
+
+void SprintToolBoxApp::OnToggleAutostart(wxCommandEvent& event) {
+    SetAutostart(!IsAutostartEnabled());
 }
 
 void SprintToolBoxApp::OnSprintUpdateTimer(wxTimerEvent& event) {

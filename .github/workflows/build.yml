@@ -12,32 +12,21 @@ on:
 jobs:
   build-macos:
     runs-on: macos-latest
-    strategy:
-      matrix:
-        arch: [arm64, intel]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
-      - name: Install dependencies (ARM64)
-        if: matrix.arch == 'arm64'
-        run: |
-          brew install wxwidgets curl
-      
-      - name: Install dependencies (Intel)
-        if: matrix.arch == 'intel'
-        run: |
-          arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
-          arch -x86_64 /usr/local/bin/brew install wxwidgets curl
-      
+
+      - name: Install dependencies
+        run: brew install wxwidgets curl
+
       - name: Build package
-        run: ./package_mac.sh ${{ matrix.arch }}
-      
+        run: ./package_mac.sh
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SprintToolBox-macOS-${{ matrix.arch }}
+          name: SprintToolBox-macOS-arm64
           path: dist/mac/*.dmg
           retention-days: 30
 
@@ -61,7 +50,7 @@ jobs:
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-wxwidgets3.2-msw
             mingw-w64-ucrt-x86_64-curl
-            zip
+            mingw-w64-ucrt-x86_64-nsis
       
       - name: Build package
         run: bash package_win.sh
@@ -70,7 +59,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: SprintToolBox-Windows
-          path: dist/win/*.zip
+          path: dist/win/*.exe
           retention-days: 30
 
   build-linux:
@@ -117,7 +106,7 @@ jobs:
         with:
           files: |
             artifacts/**/*.dmg
-            artifacts/**/*.zip
+            artifacts/**/*.exe
             artifacts/**/*.deb
           draft: false
           prerelease: false
