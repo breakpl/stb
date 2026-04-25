@@ -8,7 +8,7 @@
 !define REG_RUN    "Software\Microsoft\Windows\CurrentVersion\Run"
 
 !ifndef APP_VERSION
-  !define APP_VERSION "1.0.0"
+  !define APP_VERSION "1.0.13"
 !endif
 !ifndef BUILD_DATE
   !define BUILD_DATE "00000000"
