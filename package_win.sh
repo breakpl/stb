@@ -1,6 +1,6 @@
 #!/bin/bash
 # package_win.sh – run this INSIDE MSYS2 UCRT64 shell
-# Builds SprintToolBox and collects all required DLLs into a zip package.
+# Builds SprintToolBox and creates a self-contained NSIS installer (.exe).
 # Usage: from MSYS2 UCRT64 terminal:  bash /path/to/stb/package_win.sh
 
 export MSYSTEM=UCRT64
@@ -14,8 +14,11 @@ DIST_DIR="$SCRIPT_DIR/dist/win"
 STAGE_DIR="$DIST_DIR/SprintToolBox"
 APP_NAME="SprintToolBox"
 EXE="$BUILD_DIR/$APP_NAME.exe"
-# Auto-detect version from git tag or use default
-VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.4")
+
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+VERSION="${VERSION#v}"
+DATE=$(date +%Y%m%d)
+OUT_EXE="${APP_NAME}-${VERSION}-${DATE}-windows-x86_64.exe"
 
 # ── 1. Build ──────────────────────────────────────────────────────────────────
 echo "==> Building $APP_NAME (Release)..."
@@ -32,30 +35,6 @@ mkdir -p "$STAGE_DIR"
 cp "$EXE" "$STAGE_DIR/"
 cp "$SCRIPT_DIR/SprintToolBox.ini" "$STAGE_DIR/SprintToolBox.ini"
 
-# Add autostart scripts
-cp "$SCRIPT_DIR/setup_autostart_win.vbs" "$STAGE_DIR/"
-cp "$SCRIPT_DIR/remove_autostart_win.vbs" "$STAGE_DIR/"
-
-# Create a README for Windows users
-cat > "$STAGE_DIR/README.txt" <<'README'
-SprintToolBox - Sprint Tracking Utility
-========================================
-
-Installation:
-1. Extract all files to a permanent location (e.g., C:\Program Files\SprintToolBox)
-2. Run SprintToolBox.exe
-
-Enable Autostart:
-  Right-click setup_autostart_win.vbs and select "Open" or run:
-    cscript setup_autostart_win.vbs
-
-Disable Autostart:
-  Right-click remove_autostart_win.vbs and select "Open" or run:
-    cscript remove_autostart_win.vbs
-
-The application runs in the system tray.
-README
-
 # ── 3. Collect DLLs (exclude Windows system DLLs) ────────────────────────────
 echo "==> Collecting DLLs..."
 ldd "$EXE" \
@@ -67,14 +46,21 @@ ldd "$EXE" \
         cp "$dll" "$STAGE_DIR/"
     done
 
-# ── 4. Zip ────────────────────────────────────────────────────────────────────
-echo "==> Zipping..."
-cd "$DIST_DIR"
-ZIP="${APP_NAME}-${VERSION}-win64.zip"
-rm -f "$ZIP"
-zip -r "$ZIP" "SprintToolBox/"
+# ── 4. Build NSIS installer ───────────────────────────────────────────────────
+echo "==> Building installer..."
+mkdir -p "$DIST_DIR"
+cd "$SCRIPT_DIR"
+
+# Convert paths to Windows format for NSIS
+STAGE_WIN=$(cygpath -w "$STAGE_DIR")
+DIST_WIN=$(cygpath -w "$DIST_DIR")
+
+makensis \
+    -DAPP_VERSION="$VERSION" \
+    -DBUILD_DATE="$DATE" \
+    -DSTAGE_DIR="$STAGE_WIN" \
+    -DOUT_DIR="$DIST_WIN" \
+    installer.nsi
 
 echo ""
-echo "==> Done: $DIST_DIR/$ZIP"
-echo "    Contents:"
-unzip -l "$DIST_DIR/$ZIP" | tail -n +4 | head -n -2
+echo "==> Done: $DIST_DIR/$OUT_EXE"
