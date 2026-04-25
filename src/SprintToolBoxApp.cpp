@@ -528,9 +528,14 @@ void SprintToolBoxApp::ShowContextMenu() {
         // GetHMenu() returns the underlying NSMenu* that wxWidgets built.
         NSMenu* nsMenu = (__bridge NSMenu*)(void*)menu->GetHMenu();
         if (nsMenu) {
+            // Without this, clickedAction: dispatches wxCommandEvent to the
+            // wxMenu itself, which has no handler table.  Setting us as the
+            // next handler in the chain lets the event reach our event table.
+            menu->SetNextHandler(this);
             [nsMenu popUpMenuPositioningItem:nil
                                   atLocation:NSMakePoint(0, nsItem.button.bounds.size.height)
                                       inView:nsItem.button];
+            menu->SetNextHandler(nullptr);
         }
     }
 #else
@@ -681,21 +686,24 @@ void SprintToolBoxApp::OnDynamicMenuClick(wxCommandEvent& event) {
 
 void SprintToolBoxApp::OnQuit(wxCommandEvent& event) {
 #ifdef __WXOSX__
-    if (m_statusItem) {
-        NSStatusItem* item = (__bridge NSStatusItem*)m_statusItem;
-        [[NSStatusBar systemStatusBar] removeStatusItem:item];
-        (void)CFBridgingRelease(m_statusItem);
-        m_statusItem = nullptr;
-    }
-    if (m_statusItemHandler) {
-        (void)CFBridgingRelease(m_statusItemHandler);
-        m_statusItemHandler = nullptr;
-    }
     RemoveIcon();
-    // Defer wxExit() so it runs after popUpMenuPositioningItem's modal loop
-    // has returned to the main run loop. Calling [NSApp terminate:nil] (which
-    // wxExit() uses) from inside a modal event loop is silently ignored on macOS.
-    CallAfter([]() { wxExit(); });
+    // Defer NSStatusItem removal and wxExit so they run after
+    // popUpMenuPositioningItem's modal loop ends.  Removing the status item
+    // while its menu is still displayed crashes, and [NSApp terminate:nil]
+    // is silently dropped inside a modal event loop.
+    CallAfter([this]() {
+        if (m_statusItem) {
+            NSStatusItem* item = (__bridge NSStatusItem*)m_statusItem;
+            [[NSStatusBar systemStatusBar] removeStatusItem:item];
+            (void)CFBridgingRelease(m_statusItem);
+            m_statusItem = nullptr;
+        }
+        if (m_statusItemHandler) {
+            (void)CFBridgingRelease(m_statusItemHandler);
+            m_statusItemHandler = nullptr;
+        }
+        wxExit();
+    });
 #else
     RemoveIcon();
     wxExit();
