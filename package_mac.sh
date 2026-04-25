@@ -172,10 +172,12 @@ PKG_WORK="$BUILD_DIR/pkg-work"
 rm -rf "$PKG_WORK"
 mkdir -p "$PKG_WORK"
 
-# Payload: app → /Applications
+# Payload: SprintToolBox.app sits directly in the root so it lands in
+# whatever folder the user chooses during installation (not forced into
+# an Applications/ subdirectory inside that folder).
 PKG_ROOT="$PKG_WORK/root"
-mkdir -p "$PKG_ROOT/Applications"
-cp -R "$APP_BUNDLE" "$PKG_ROOT/Applications/"
+mkdir -p "$PKG_ROOT"
+cp -R "$APP_BUNDLE" "$PKG_ROOT/"
 
 # Postinstall script: dialog → LaunchAgent
 SCRIPTS_DIR="$PKG_WORK/scripts"
@@ -211,8 +213,10 @@ PLIST_B64=$(printf '%s' "$PLIST_CONTENT" | base64)
 cat > "$SCRIPTS_DIR/postinstall" << POSTINSTALL_EOF
 #!/bin/bash
 
-INSTALL_TARGET="\${2:-/}"
-APP_BIN="\${INSTALL_TARGET%/}/Applications/SprintToolBox.app/Contents/MacOS/SprintToolBox"
+# $2 = the folder the user chose (e.g. /Applications, $HOME, $HOME/tools).
+# The app bundle lands directly in that folder.
+INSTALL_TARGET="\${2:-/Applications}"
+APP_BIN="\${INSTALL_TARGET%/}/SprintToolBox.app/Contents/MacOS/SprintToolBox"
 
 CONSOLE_USER=\$(stat -f "%Su" /dev/console 2>/dev/null || true)
 if [ -z "\$CONSOLE_USER" ] || [ "\$CONSOLE_USER" = "root" ]; then exit 0; fi
@@ -246,18 +250,19 @@ pkgbuild \
     --root "$PKG_ROOT" \
     --identifier "$BUNDLE_ID" \
     --version "$VERSION" \
-    --install-location "/" \
+    --install-location "/Applications" \
     --scripts "$SCRIPTS_DIR" \
     "$PKG_WORK/component.pkg"
 
-# Distribution XML — enables system (/Applications) and user-home (~/Applications)
-# installation so the user can choose during the installer wizard.
+# enable_anywhere lets the user browse to any folder — $HOME, ~/Applications,
+# ~/tools, or the system /Applications — without needing admin rights for
+# a home-directory install.
 cat > "$PKG_WORK/distribution.xml" << DIST_EOF
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
     <title>SprintToolBox ${VERSION}</title>
     <options customize="never" require-scripts="false"/>
-    <domains enable_localSystem="true" enable_currentUserHome="true"/>
+    <domains enable_localSystem="true" enable_currentUserHome="true" enable_anywhere="true"/>
     <choices-outline>
         <line choice="default"/>
     </choices-outline>
