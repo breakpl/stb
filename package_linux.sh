@@ -81,46 +81,7 @@ EOF
 cat > "$DEB_CTRL/postinst" <<'EOF'
 #!/bin/sh
 set -e
-
-# Update desktop database
 update-desktop-database /usr/share/applications 2>/dev/null || true
-
-# Prompt for autostart setup (runs as the installing user)
-if [ -n "$SUDO_USER" ]; then
-    USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
-else
-    USER_HOME="$HOME"
-fi
-
-AUTOSTART_DIR="$USER_HOME/.config/autostart"
-
-# Ask user if they want autostart
-cat <<ENDMSG
-
-────────────────────────────────────────────────────────
-SprintToolBox installed successfully!
-
-To enable autostart at login, run:
-  mkdir -p ~/.config/autostart
-  cp /usr/share/applications/sprinttoolbox.desktop ~/.config/autostart/
-
-Or manually enable in your desktop environment's startup settings.
-────────────────────────────────────────────────────────
-ENDMSG
-
-# If we can write to user's autostart directory, offer to set it up
-if [ -w "$USER_HOME" ] && [ "$USER_HOME" != "/root" ]; then
-    printf "Enable autostart at login? [y/N] "
-    read -r REPLY < /dev/tty || REPLY="n"
-    case "$REPLY" in
-        [Yy]*)
-            mkdir -p "$AUTOSTART_DIR"
-            cp /usr/share/applications/sprinttoolbox.desktop "$AUTOSTART_DIR/"
-            chown -R "$SUDO_USER:$SUDO_USER" "$AUTOSTART_DIR" 2>/dev/null || true
-            echo "✓ Autostart enabled"
-            ;;
-    esac
-fi
 EOF
 chmod 755 "$DEB_CTRL/postinst"
 

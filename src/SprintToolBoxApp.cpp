@@ -7,6 +7,9 @@
 #include <wx/datetime.h>
 #include <wx/icon.h>
 #include <wx/bitmap.h>
+#include <wx/stdpaths.h>
+#include <wx/filename.h>
+#include <wx/file.h>
 #include <curl/curl.h>
 #include <string>
 
@@ -69,6 +72,7 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_MENU(ID_OPEN_CONVERTER, SprintToolBoxApp::OnOpenConverter)
     EVT_MENU(ID_OPEN_TIME_CONVERTER, SprintToolBoxApp::OnOpenTimeConverter)
     EVT_MENU(ID_QUIT, SprintToolBoxApp::OnQuit)
+    EVT_MENU(ID_TOGGLE_AUTOSTART, SprintToolBoxApp::OnToggleAutostart)
     EVT_TIMER(ID_SPRINT_TIMER, SprintToolBoxApp::OnSprintUpdateTimer)
     EVT_TIMER(ID_RETRY_TIMER,  SprintToolBoxApp::OnRetryTimer)
     EVT_TIMER(ID_CONFIG_WATCH_TIMER, SprintToolBoxApp::OnConfigWatchTimer)
@@ -590,8 +594,10 @@ wxMenu* SprintToolBoxApp::BuildPopupMenu() {
     }
     
     menu->AppendSeparator();
-    
-    // Quit
+
+    wxMenuItem* autostartItem = menu->AppendCheckItem(ID_TOGGLE_AUTOSTART, "Start at login");
+    autostartItem->Check(IsAutostartEnabled());
+
     menu->Append(ID_QUIT, "Quit");
     
     return menu;
@@ -648,6 +654,102 @@ void SprintToolBoxApp::OnDynamicMenuClick(wxCommandEvent& event) {
 void SprintToolBoxApp::OnQuit(wxCommandEvent& event) {
     RemoveIcon();
     wxExit();
+}
+
+bool SprintToolBoxApp::IsAutostartEnabled() {
+#ifdef __WXOSX__
+    NSString* plistPath = [[NSHomeDirectory()
+        stringByAppendingPathComponent:@"Library/LaunchAgents"]
+        stringByAppendingPathComponent:@"com.sprinttoolbox.plist"];
+    return [[NSFileManager defaultManager] fileExistsAtPath:plistPath];
+#elif defined(_WIN32)
+    HKEY key;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER,
+                      L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                      0, KEY_READ, &key) != ERROR_SUCCESS)
+        return false;
+    DWORD size = 0;
+    bool found = RegQueryValueExW(key, L"SprintToolBox", nullptr,
+                                  nullptr, nullptr, &size) == ERROR_SUCCESS;
+    RegCloseKey(key);
+    return found;
+#else
+    return wxFileExists(wxGetHomeDir() + "/.config/autostart/sprinttoolbox.desktop");
+#endif
+}
+
+void SprintToolBoxApp::SetAutostart(bool enable) {
+#ifdef __WXOSX__
+    NSString* laDir = [NSHomeDirectory()
+        stringByAppendingPathComponent:@"Library/LaunchAgents"];
+    NSString* plistPath = [laDir
+        stringByAppendingPathComponent:@"com.sprinttoolbox.plist"];
+    if (enable) {
+        wxString exePath = wxStandardPaths::Get().GetExecutablePath();
+        NSString* exe = [NSString stringWithUTF8String:exePath.utf8_str()];
+        NSDictionary* plist = @{
+            @"Label": @"com.sprinttoolbox",
+            @"ProgramArguments": @[exe],
+            @"RunAtLoad": @YES,
+            @"KeepAlive": @NO,
+            @"ProcessType": @"Interactive"
+        };
+        NSError* err = nil;
+        [[NSFileManager defaultManager] createDirectoryAtPath:laDir
+            withIntermediateDirectories:YES attributes:nil error:&err];
+        NSData* data = [NSPropertyListSerialization
+            dataWithPropertyList:plist
+            format:NSPropertyListXMLFormat_v1_0
+            options:0 error:&err];
+        if (data)
+            [data writeToFile:plistPath options:NSDataWritingAtomic error:&err];
+    } else {
+        [[NSFileManager defaultManager] removeItemAtPath:plistPath error:nil];
+    }
+#elif defined(_WIN32)
+    HKEY key;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER,
+                      L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                      0, KEY_SET_VALUE, &key) != ERROR_SUCCESS)
+        return;
+    if (enable) {
+        wxString exePath = wxStandardPaths::Get().GetExecutablePath();
+        wxString quoted = wxString("\"") + exePath + wxString("\"");
+        std::wstring wval = quoted.ToStdWstring();
+        RegSetValueExW(key, L"SprintToolBox", 0, REG_SZ,
+            reinterpret_cast<const BYTE*>(wval.c_str()),
+            static_cast<DWORD>((wval.size() + 1) * sizeof(wchar_t)));
+    } else {
+        RegDeleteValueW(key, L"SprintToolBox");
+    }
+    RegCloseKey(key);
+#else
+    wxString autoDir = wxGetHomeDir() + "/.config/autostart";
+    wxString desktopPath = autoDir + "/sprinttoolbox.desktop";
+    if (enable) {
+        wxFileName::Mkdir(autoDir, 0755, wxPATH_MKDIR_FULL);
+        wxFile f(desktopPath, wxFile::write);
+        if (f.IsOpened()) {
+            wxString exe = wxStandardPaths::Get().GetExecutablePath();
+            f.Write(wxString::Format(
+                "[Desktop Entry]\n"
+                "Type=Application\n"
+                "Name=SprintToolBox\n"
+                "Comment=Sprint tracking tray utility\n"
+                "Exec=%s\n"
+                "Icon=utilities-system-monitor\n"
+                "StartupNotify=false\n"
+                "X-GNOME-Autostart-enabled=true\n",
+                exe));
+        }
+    } else {
+        wxRemoveFile(desktopPath);
+    }
+#endif
+}
+
+void SprintToolBoxApp::OnToggleAutostart(wxCommandEvent& event) {
+    SetAutostart(!IsAutostartEnabled());
 }
 
 void SprintToolBoxApp::OnSprintUpdateTimer(wxTimerEvent& event) {

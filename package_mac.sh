@@ -19,7 +19,7 @@ HOMEBREW_PREFIX="/opt/homebrew"
 VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
 VERSION="${VERSION#v}"
 DATE=$(date +%Y%m%d)
-PKG_NAME="${APP_NAME}-${VERSION}-${DATE}-macos-arm64.pkg"
+DMG_NAME="${APP_NAME}-${VERSION}-${DATE}-macos-arm64.dmg"
 
 # ── 1. Build ──────────────────────────────────────────────────────────────────
 echo "==> Building $APP_NAME (Release, arm64)..."
@@ -166,118 +166,20 @@ codesign --force --deep --sign - --timestamp=none \
          --entitlements "$SCRIPT_DIR/entitlements.plist" "$APP_BUNDLE"
 echo "  OK – app signed."
 
-# ── 6. Create .pkg installer ──────────────────────────────────────────────────
-echo "==> Building .pkg installer..."
-PKG_WORK="$BUILD_DIR/pkg-work"
-rm -rf "$PKG_WORK"
-mkdir -p "$PKG_WORK"
-
-# Payload: SprintToolBox.app sits directly in the root so it lands in
-# whatever folder the user chooses during installation (not forced into
-# an Applications/ subdirectory inside that folder).
-PKG_ROOT="$PKG_WORK/root"
-mkdir -p "$PKG_ROOT"
-cp -R "$APP_BUNDLE" "$PKG_ROOT/"
-
-# Postinstall script: dialog → LaunchAgent
-SCRIPTS_DIR="$PKG_WORK/scripts"
-mkdir -p "$SCRIPTS_DIR"
-
-# Write the postinstall script without heredoc nesting.
-# It asks the user (via osascript) whether to enable autostart and,
-# if yes, installs a LaunchAgent plist into their ~/Library/LaunchAgents/.
-PLIST_CONTENT='<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.sprinttoolbox</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/Applications/SprintToolBox.app/Contents/MacOS/SprintToolBox</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <false/>
-    <key>ProcessType</key>
-    <string>Interactive</string>
-</dict>
-</plist>'
-
-# Embed the plist as a base64 blob so the postinstall script has no heredoc dependency.
-PLIST_B64=$(printf '%s' "$PLIST_CONTENT" | base64)
-
-# postinstall receives $2 = install target (/ for system, $HOME for user home).
-# Never exit non-zero — macOS rolls back the payload on script failure.
-cat > "$SCRIPTS_DIR/postinstall" << POSTINSTALL_EOF
-#!/bin/bash
-
-# \$2 = the folder the user chose (e.g. /Applications, \$HOME, \$HOME/tools).
-# The app bundle lands directly in that folder.
-INSTALL_TARGET="\${2:-/Applications}"
-APP_BIN="\${INSTALL_TARGET%/}/SprintToolBox.app/Contents/MacOS/SprintToolBox"
-
-CONSOLE_USER=\$(stat -f "%Su" /dev/console 2>/dev/null || true)
-if [ -z "\$CONSOLE_USER" ] || [ "\$CONSOLE_USER" = "root" ]; then exit 0; fi
-
-USER_UID=\$(id -u "\$CONSOLE_USER" 2>/dev/null || true)
-USER_HOME=\$(dscl . -read "/Users/\$CONSOLE_USER" NFSHomeDirectory 2>/dev/null | awk '{print \$2}' || true)
-if [ -z "\$USER_HOME" ]; then exit 0; fi
-
-RESPONSE=\$(launchctl asuser "\$USER_UID" sudo -u "\$CONSOLE_USER" \
-    osascript -e 'display dialog "Start SprintToolBox automatically when you log in?" buttons {"No", "Yes"} default button "Yes" with icon note with title "SprintToolBox"' \
-    2>/dev/null || echo "button returned:No")
-
-if echo "\$RESPONSE" | grep -q "Yes"; then
-    LAUNCH_AGENTS="\$USER_HOME/Library/LaunchAgents"
-    PLIST_PATH="\$LAUNCH_AGENTS/com.sprinttoolbox.plist"
-    mkdir -p "\$LAUNCH_AGENTS" 2>/dev/null || true
-    printf '%s' "${PLIST_B64}" | base64 --decode | \
-        sed "s|/Applications/SprintToolBox.app/Contents/MacOS/SprintToolBox|\$APP_BIN|" \
-        > "\$PLIST_PATH" 2>/dev/null || true
-    chown "\$CONSOLE_USER" "\$PLIST_PATH" 2>/dev/null || true
-    launchctl asuser "\$USER_UID" sudo -u "\$CONSOLE_USER" \
-        launchctl load "\$PLIST_PATH" 2>/dev/null || true
-fi
-exit 0
-POSTINSTALL_EOF
-
-chmod 755 "$SCRIPTS_DIR/postinstall"
-
-# Component package (payload + scripts)
-pkgbuild \
-    --root "$PKG_ROOT" \
-    --identifier "$BUNDLE_ID" \
-    --version "$VERSION" \
-    --install-location "/Applications" \
-    --scripts "$SCRIPTS_DIR" \
-    "$PKG_WORK/component.pkg"
-
-# enable_anywhere lets the user browse to any folder — $HOME, ~/Applications,
-# ~/tools, or the system /Applications — without needing admin rights for
-# a home-directory install.
-cat > "$PKG_WORK/distribution.xml" << DIST_EOF
-<?xml version="1.0" encoding="utf-8"?>
-<installer-gui-script minSpecVersion="2">
-    <title>SprintToolBox ${VERSION}</title>
-    <options customize="never" require-scripts="false"/>
-    <domains enable_localSystem="true" enable_currentUserHome="true" enable_anywhere="true"/>
-    <choices-outline>
-        <line choice="default"/>
-    </choices-outline>
-    <choice id="default" title="SprintToolBox">
-        <pkg-ref id="${BUNDLE_ID}"/>
-    </choice>
-    <pkg-ref id="${BUNDLE_ID}" version="${VERSION}" onConclusion="none">component.pkg</pkg-ref>
-</installer-gui-script>
-DIST_EOF
+# ── 6. Create DMG ─────────────────────────────────────────────────────────────
+echo "==> Building DMG..."
+DMG_STAGE="$BUILD_DIR/dmg-stage"
+rm -rf "$DMG_STAGE"
+mkdir -p "$DMG_STAGE"
+cp -R "$APP_BUNDLE" "$DMG_STAGE/"
+ln -s /Applications "$DMG_STAGE/Applications"
 
 mkdir -p "$DIST_DIR"
-productbuild \
-    --distribution "$PKG_WORK/distribution.xml" \
-    --package-path "$PKG_WORK" \
-    "$DIST_DIR/$PKG_NAME"
+hdiutil create \
+    -volname "$APP_NAME $VERSION" \
+    -srcfolder "$DMG_STAGE" \
+    -ov -format UDZO \
+    "$DIST_DIR/$DMG_NAME"
 
 echo ""
-echo "==> Done: $DIST_DIR/$PKG_NAME"
+echo "==> Done: $DIST_DIR/$DMG_NAME"

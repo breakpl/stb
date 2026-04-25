@@ -44,7 +44,11 @@ private:
     void OnConfigWatchTimer(wxTimerEvent& event);
 
     void OnDynamicMenuClick(wxCommandEvent& event);
-    
+    void OnToggleAutostart(wxCommandEvent& event);
+
+    bool IsAutostartEnabled();
+    void SetAutostart(bool enable);
+
     void UpdateTimestamps();
     void UpdateSprint();
     void FetchPublicSprint();  // Fetch from GitHub public URL
@@ -88,6 +92,8 @@ enum {
     ID_SPRINT_TIMER,
     ID_RETRY_TIMER,
     ID_CONFIG_WATCH_TIMER,
+
+    ID_TOGGLE_AUTOSTART,
 
     ID_DYNAMIC_MENU_START = wxID_HIGHEST + 1000  // Base ID for dynamic menu items
 };

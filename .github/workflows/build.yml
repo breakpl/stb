@@ -27,7 +27,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: SprintToolBox-macOS-arm64
-          path: dist/mac/*.pkg
+          path: dist/mac/*.dmg
           retention-days: 30
 
   build-windows:
@@ -50,7 +50,7 @@ jobs:
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-wxwidgets3.2-msw
             mingw-w64-ucrt-x86_64-curl
-            zip
+            mingw-w64-ucrt-x86_64-nsis
       
       - name: Build package
         run: bash package_win.sh
@@ -59,7 +59,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: SprintToolBox-Windows
-          path: dist/win/*.zip
+          path: dist/win/*.exe
           retention-days: 30
 
   build-linux:
@@ -105,8 +105,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            artifacts/**/*.pkg
-            artifacts/**/*.zip
+            artifacts/**/*.dmg
+            artifacts/**/*.exe
             artifacts/**/*.deb
           draft: false
           prerelease: false
