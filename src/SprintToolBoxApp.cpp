@@ -23,17 +23,26 @@
 #import <Cocoa/Cocoa.h>
 #import <objc/runtime.h>
 
-// Helper to observe theme changes
+// Observes system theme changes and forwards them to the C++ owner.
 @interface ThemeChangeObserver : NSObject
 @property (assign) SprintToolBoxApp* owner;
 @end
 
 @implementation ThemeChangeObserver
 - (void)themeChanged:(NSNotification*)notification {
-    if (self.owner) {
-        // Trigger icon update when theme changes
+    if (self.owner)
         self.owner->UpdateTrayIcon(self.owner->m_currentIconText, self.owner->m_currentDaysPassed);
-    }
+}
+@end
+
+// Receives NSStatusItem button clicks and forwards them to ShowContextMenu().
+@interface StatusItemClickHandler : NSObject
+@property (assign) SprintToolBoxApp* owner;
+@end
+
+@implementation StatusItemClickHandler
+- (void)clicked:(id)sender {
+    if (self.owner) self.owner->ShowContextMenu();
 }
 @end
 
@@ -78,7 +87,10 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_TIMER(ID_CONFIG_WATCH_TIMER, SprintToolBoxApp::OnConfigWatchTimer)
 
     EVT_MENU_RANGE(ID_DYNAMIC_MENU_START, ID_DYNAMIC_MENU_START + 999, SprintToolBoxApp::OnDynamicMenuClick)
+    // macOS clicks are routed through StatusItemClickHandler; only Linux/Windows need this.
+#ifndef __WXOSX__
     EVT_TASKBAR_LEFT_UP(SprintToolBoxApp::OnTaskBarClick)
+#endif
 #ifdef _WIN32
     EVT_TASKBAR_RIGHT_UP(SprintToolBoxApp::OnTaskBarClick)
 #endif
@@ -103,6 +115,7 @@ SprintToolBoxApp::SprintToolBoxApp()
 #ifdef __WXOSX__
     , m_themeObserver(nullptr)
     , m_statusItem(nullptr)
+    , m_statusItemHandler(nullptr)
 #endif
 #ifdef _WIN32
     , m_themeHwnd(nullptr)
@@ -183,7 +196,12 @@ SprintToolBoxApp::~SprintToolBoxApp() {
         (void)CFBridgingRelease(m_statusItem);
         m_statusItem = nullptr;
     }
-    
+
+    if (m_statusItemHandler) {
+        (void)CFBridgingRelease(m_statusItemHandler);
+        m_statusItemHandler = nullptr;
+    }
+
     if (m_themeObserver) {
         ThemeChangeObserver* observer = (__bridge ThemeChangeObserver*)m_themeObserver;
         [[NSDistributedNotificationCenter defaultCenter] removeObserver:observer];
@@ -249,28 +267,22 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
             tooltip += wxString::Format(" (Day %d)", daysPassed);
         }
         
-        // On first call, we need SetIcon to let wxTaskBarIcon create its NSStatusItem
+        // First call: create our own NSStatusItem directly.
+        // The old approach used SetIcon() + a private KVC valueForKey:@"statusItems"
+        // lookup which stopped working on macOS 15 (Sequoia).
         if (!m_statusItem) {
-            // Create a tiny 1x1 transparent wxBitmap to bootstrap the status item
-            wxBitmap bmp(1, 1, 32);
-            wxMemoryDC dc;
-            dc.SelectObject(bmp);
-            dc.SetBackground(*wxTRANSPARENT_BRUSH);
-            dc.Clear();
-            dc.SelectObject(wxNullBitmap);
-            wxIcon icon;
-            icon.CopyFromBitmap(bmp);
-            SetIcon(icon, tooltip);
-            
-            // Find our status item by tooltip using KVC
-            NSString* nsTooltip = [NSString stringWithUTF8String:tooltip.utf8_str()];
-            NSArray* items = [[NSStatusBar systemStatusBar] valueForKey:@"statusItems"];
-            for (NSStatusItem* item in items) {
-                if (item.button && [item.button.toolTip isEqualToString:nsTooltip]) {
-                    m_statusItem = (void*)CFBridgingRetain(item);
-                    break;
-                }
-            }
+            StatusItemClickHandler* handler = [[StatusItemClickHandler alloc] init];
+            handler.owner = this;
+            m_statusItemHandler = (void*)CFBridgingRetain(handler);
+
+            NSStatusItem* item = [[NSStatusBar systemStatusBar]
+                                  statusItemWithLength:NSVariableStatusItemLength];
+            item.button.target  = handler;
+            item.button.action  = @selector(clicked:);
+            // Trigger on both mouse buttons so right-click also shows the menu.
+            item.button.sendActionOn = NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp;
+
+            m_statusItem = (void*)CFBridgingRetain(item);
         }
         
         NSStatusItem* targetItem = m_statusItem ? (__bridge NSStatusItem*)m_statusItem : nil;
@@ -454,10 +466,9 @@ void SprintToolBoxApp::UpdateTimestamps() {
 
 wxMenu* SprintToolBoxApp::CreatePopupMenu() {
 #ifdef __WXOSX__
-    // On macOS, wxTaskBarIcon calls CreatePopupMenu() internally when the
-    // status item is clicked.  EVT_TASKBAR_LEFT_UP / RIGHT_UP are NOT fired,
-    // so we must return the menu here for it to appear.
-    return BuildPopupMenu();
+    // On macOS we own the NSStatusItem directly and show the menu from
+    // ShowContextMenu(), so wxWidgets never needs to call this.
+    return nullptr;
 #elif defined(__WXGTK__)
     // On Linux/GTK, CreatePopupMenu() is called for right-click by default
     return BuildPopupMenu();
@@ -509,7 +520,22 @@ void SprintToolBoxApp::ShowContextMenu() {
     }
 #endif
 
+#ifdef __WXOSX__
+    // Use native Cocoa popup anchored below our NSStatusItem button.
+    // popUpMenuPositioningItem: is synchronous – it blocks until dismissed.
+    if (m_statusItem) {
+        NSStatusItem* nsItem = (__bridge NSStatusItem*)m_statusItem;
+        // GetHMenu() returns the underlying NSMenu* that wxWidgets built.
+        NSMenu* nsMenu = (__bridge NSMenu*)(void*)menu->GetHMenu();
+        if (nsMenu) {
+            [nsMenu popUpMenuPositioningItem:nil
+                                  atLocation:NSMakePoint(0, nsItem.button.bounds.size.height)
+                                      inView:nsItem.button];
+        }
+    }
+#else
     PopupMenu(menu);
+#endif
 
 #ifdef _WIN32
     if (attached)
@@ -655,14 +681,15 @@ void SprintToolBoxApp::OnDynamicMenuClick(wxCommandEvent& event) {
 
 void SprintToolBoxApp::OnQuit(wxCommandEvent& event) {
 #ifdef __WXOSX__
-    // Explicitly remove the NSStatusItem from the menu bar before shutdown.
-    // Without this, the icon lingers as a ghost after exit() tears the process down
-    // without going through the full Cocoa shutdown sequence.
     if (m_statusItem) {
         NSStatusItem* item = (__bridge NSStatusItem*)m_statusItem;
         [[NSStatusBar systemStatusBar] removeStatusItem:item];
         (void)CFBridgingRelease(m_statusItem);
         m_statusItem = nullptr;
+    }
+    if (m_statusItemHandler) {
+        (void)CFBridgingRelease(m_statusItemHandler);
+        m_statusItemHandler = nullptr;
     }
 #endif
     RemoveIcon();
