@@ -280,7 +280,7 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
             item.button.target  = handler;
             item.button.action  = @selector(clicked:);
             // Trigger on both mouse buttons so right-click also shows the menu.
-            item.button.sendActionOn = NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp;
+            [item.button sendActionOn:NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp];
 
             m_statusItem = (void*)CFBridgingRetain(item);
         }
