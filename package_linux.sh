@@ -12,7 +12,14 @@ APP_NAME_LOWER="sprinttoolbox"
 EXE="$BUILD_DIR/$APP_NAME"
 # Auto-detect version from git tag or use default
 VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.4")
-ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
+DATE=$(date +%Y%m%d)
+DEB_ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
+# Map Debian arch names to the convention used by the macOS/Windows packages
+case "$DEB_ARCH" in
+    amd64)   ARCH_STD="x86_64" ;;
+    arm64)   ARCH_STD="arm64"  ;;
+    *)       ARCH_STD="$DEB_ARCH" ;;
+esac
 
 # ── 1. Build ──────────────────────────────────────────────────────────────────
 echo "==> Building $APP_NAME (Release)..."
@@ -68,7 +75,7 @@ Package: $APP_NAME_LOWER
 Version: $VERSION
 Section: utils
 Priority: optional
-Architecture: $ARCH
+Architecture: $DEB_ARCH
 Installed-Size: $INSTALLED_KB
 Depends: libwxgtk3.2-1 | libwxgtk3.2-0v5 | libwxgtk3.0-gtk3-0v5, libcurl4
 Maintainer: SprintToolBox
@@ -105,7 +112,7 @@ chmod 755 "$DEB_CTRL/postrm"
 # ── 5. Build .deb ─────────────────────────────────────────────────────────────
 echo "==> Building .deb..."
 mkdir -p "$DIST_DIR"
-DEB_FILE="$DIST_DIR/${APP_NAME_LOWER}_${VERSION}_${ARCH}.deb"
+DEB_FILE="$DIST_DIR/${APP_NAME}-${VERSION}-${DATE}-linux-${ARCH_STD}.deb"
 dpkg-deb --build "$DEB_ROOT" "$DEB_FILE"
 
 echo ""
