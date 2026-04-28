@@ -3,11 +3,12 @@
 # Builds SprintToolBox and creates an NSIS installer (.exe).
 # Usage: bash package_win.sh
 
-export MSYSTEM=UCRT64
+export MSYSTEM="${MSYSTEM:-UCRT64}"
 [ -f /etc/profile ] && source /etc/profile
 
 set -e
 
+ARCH="${ARCH:-x86_64}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$SCRIPT_DIR/build"
 DIST_DIR="$SCRIPT_DIR/dist/win"
@@ -49,13 +50,24 @@ mkdir -p "$DIST_DIR"
 STAGE_WIN=$(cygpath -w "$STAGE_DIR")
 DIST_WIN=$(cygpath -w "$DIST_DIR")
 
-makensis \
+# Locate makensis – prefer the one in PATH, fall back to /ucrt64/bin
+if command -v makensis &>/dev/null; then
+    MAKENSIS="makensis"
+elif [ -f "/ucrt64/bin/makensis" ]; then
+    MAKENSIS="/ucrt64/bin/makensis"
+else
+    echo "ERROR: makensis not found" >&2
+    exit 1
+fi
+
+"$MAKENSIS" \
     -DAPP_VERSION="$VERSION" \
     -DBUILD_DATE="$DATE" \
+    -DARCH="$ARCH" \
     -DSTAGE_DIR="$STAGE_WIN" \
     -DOUT_DIR="$DIST_WIN" \
     "$SCRIPT_DIR/installer.nsi"
 
-OUT_EXE="${APP_NAME}-${VERSION}-${DATE}-windows-x86_64.exe"
+OUT_EXE="${APP_NAME}-${VERSION}-${DATE}-windows-${ARCH}.exe"
 echo ""
 echo "==> Done: $DIST_DIR/$OUT_EXE"

@@ -8,7 +8,7 @@
 !define REG_RUN    "Software\Microsoft\Windows\CurrentVersion\Run"
 
 !ifndef APP_VERSION
-  !define APP_VERSION "1.0.13"
+  !define APP_VERSION "1.0.14"
 !endif
 !ifndef BUILD_DATE
   !define BUILD_DATE "00000000"
@@ -19,8 +19,11 @@
 !ifndef OUT_DIR
   !define OUT_DIR "."
 !endif
+!ifndef ARCH
+  !define ARCH "x86_64"
+!endif
 
-OutFile "${OUT_DIR}\SprintToolBox-${APP_VERSION}-${BUILD_DATE}-windows-x86_64.exe"
+OutFile "${OUT_DIR}\SprintToolBox-${APP_VERSION}-${BUILD_DATE}-windows-${ARCH}.exe"
 Name    "${APP_NAME} ${APP_VERSION}"
 
 ; Install to per-user local app data – no UAC elevation required.
