@@ -343,12 +343,9 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
                 ::RegCloseKey(hKey);
             }
         }
-        BYTE fgR = darkTaskbar ? 255 :  20;
-        BYTE fgG = darkTaskbar ? 255 :  20;
-        BYTE fgB = darkTaskbar ? 255 :  20;
-        BYTE bgR = darkTaskbar ?  50 : 200;
-        BYTE bgG = darkTaskbar ?  50 : 200;
-        BYTE bgB = darkTaskbar ?  55 : 205;
+        BYTE fgR = darkTaskbar ? 255 : 0;
+        BYTE fgG = darkTaskbar ? 255 : 0;
+        BYTE fgB = darkTaskbar ? 255 : 0;
 
         // --- Step 1: Create a 32-bit top-down DIB section ---
         BITMAPINFO bmi = {};
@@ -369,20 +366,6 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
         // Clear to black (all channels zero → fully transparent)
         memset(bits, 0, iconSize * iconSize * 4);
 
-        // Draw a rounded-rect badge so the number has a solid background
-        {
-            HBRUSH bgBrush = ::CreateSolidBrush(RGB(bgR, bgG, bgB));
-            HPEN   noPen   = ::CreatePen(PS_NULL, 0, 0);
-            HPEN   oldPen  = (HPEN)  ::SelectObject(memDC, noPen);
-            HBRUSH oldBr   = (HBRUSH)::SelectObject(memDC, bgBrush);
-            int corner = (iconSize / 5 > 2) ? (iconSize / 5) : 2;
-            ::RoundRect(memDC, 0, 0, iconSize, iconSize, corner, corner);
-            ::SelectObject(memDC, oldPen);
-            ::SelectObject(memDC, oldBr);
-            ::DeleteObject(noPen);
-            ::DeleteObject(bgBrush);
-        }
-
         // --- Step 2: Auto-size font so the text fits the icon ---
         // Start large and shrink until the measured text extent fits inside
         // the icon with 1 px padding on each side.
@@ -399,10 +382,9 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
             CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
         HFONT oldFont = (HFONT)::SelectObject(memDC, hFont);
 
-        // Draw text using the badge background for correct ClearType rendering
-        ::SetBkMode(memDC, OPAQUE);
-        ::SetBkColor(memDC, RGB(bgR, bgG, bgB));
-        ::SetTextColor(memDC, RGB(fgR, fgG, fgB));
+        // Draw WHITE text so any pixel brightness = coverage
+        ::SetBkMode(memDC, TRANSPARENT);
+        ::SetTextColor(memDC, RGB(255, 255, 255));
 
         RECT rc = { 0, 0, iconSize, iconSize };
         ::DrawTextW(memDC, text.wc_str(), -1, &rc,
@@ -416,18 +398,19 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
         if (hFont) ::DeleteObject(hFont);
         ::ReleaseDC(nullptr, screenDC);
 
-        // --- Step 4: Build wxImage from DIB pixels ---
-        // Badge pixels (background + text) are opaque; only the anti-aliased
-        // rounded corners (still black/zero) are transparent.
+        // --- Step 4: Build wxImage from DIB luminance → alpha ---
         wxImage img(iconSize, iconSize);
         img.InitAlpha();
 
         BYTE* px = (BYTE*)bits;
         for (int y = 0; y < iconSize; y++) {
             for (int x = 0; x < iconSize; x++, px += 4) {
-                BYTE b = px[0], g = px[1], r = px[2];
-                BYTE alpha = (r | g | b) ? 255 : 0;
-                img.SetRGB(x, y, r, g, b);
+                // max(R,G,B) gives the true coverage even under ClearType
+                BYTE alpha = px[2];                    // R
+                if (px[1] > alpha) alpha = px[1];      // G
+                if (px[0] > alpha) alpha = px[0];      // B
+
+                img.SetRGB(x, y, fgR, fgG, fgB);
                 img.SetAlpha(x, y, alpha);
             }
         }
