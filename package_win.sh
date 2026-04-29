@@ -15,8 +15,9 @@ DIST_DIR="$SCRIPT_DIR/dist/win"
 STAGE_DIR="$DIST_DIR/SprintToolBox"
 APP_NAME="SprintToolBox"
 EXE="$BUILD_DIR/$APP_NAME.exe"
-VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
-VERSION="${VERSION#v}"
+CMAKE_VERSION=$(grep -m1 'project.*VERSION' "$SCRIPT_DIR/CMakeLists.txt" | sed -E 's/.*VERSION[[:space:]]+([0-9][0-9.]*).*/\1/')
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+VERSION="${VERSION:-$CMAKE_VERSION}"
 DATE=$(date +%Y%m%d)
 
 # ── 1. Build ──────────────────────────────────────────────────────────────────

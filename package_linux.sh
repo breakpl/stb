@@ -10,8 +10,9 @@ DIST_DIR="$SCRIPT_DIR/dist/linux"
 APP_NAME="SprintToolBox"
 APP_NAME_LOWER="sprinttoolbox"
 EXE="$BUILD_DIR/$APP_NAME"
-# Auto-detect version from git tag or use default
-VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.4")
+CMAKE_VERSION=$(grep -m1 'project.*VERSION' "$SCRIPT_DIR/CMakeLists.txt" | sed -E 's/.*VERSION[[:space:]]+([0-9][0-9.]*).*/\1/')
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+VERSION="${VERSION:-$CMAKE_VERSION}"
 DATE=$(date +%Y%m%d)
 DEB_ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
 # Map Debian arch names to the convention used by the macOS/Windows packages

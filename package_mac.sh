@@ -16,8 +16,9 @@ FRAMEWORKS="$APP_BUNDLE/Contents/Frameworks"
 BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 HOMEBREW_PREFIX="/opt/homebrew"
 
-VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
-VERSION="${VERSION#v}"
+CMAKE_VERSION=$(grep -m1 'project.*VERSION' "$SCRIPT_DIR/CMakeLists.txt" | sed -E 's/.*VERSION[[:space:]]+([0-9][0-9.]*).*/\1/')
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+VERSION="${VERSION:-$CMAKE_VERSION}"
 DATE=$(date +%Y%m%d)
 DMG_NAME="${APP_NAME}-${VERSION}-${DATE}-macos-arm64.dmg"
 
