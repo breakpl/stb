@@ -375,7 +375,7 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
             HPEN   noPen   = ::CreatePen(PS_NULL, 0, 0);
             HPEN   oldPen  = (HPEN)  ::SelectObject(memDC, noPen);
             HBRUSH oldBr   = (HBRUSH)::SelectObject(memDC, bgBrush);
-            int corner = max(2, iconSize / 5);
+            int corner = (iconSize / 5 > 2) ? (iconSize / 5) : 2;
             ::RoundRect(memDC, 0, 0, iconSize, iconSize, corner, corner);
             ::SelectObject(memDC, oldPen);
             ::SelectObject(memDC, oldBr);
