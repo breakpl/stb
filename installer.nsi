@@ -8,7 +8,7 @@
 !define REG_RUN    "Software\Microsoft\Windows\CurrentVersion\Run"
 
 !ifndef APP_VERSION
-  !define APP_VERSION "1.0.14"
+  !error "APP_VERSION must be passed via -DAPP_VERSION=x.y.z"
 !endif
 !ifndef BUILD_DATE
   !define BUILD_DATE "00000000"
