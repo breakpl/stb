@@ -33,6 +33,8 @@ RequestExecutionLevel user
 ShowInstDetails show
 
 !define MUI_ABORTWARNING
+!define MUI_FINISHPAGE_RUN         "$INSTDIR\${APP_EXE}"
+!define MUI_FINISHPAGE_RUN_TEXT    "Launch ${APP_NAME}"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
@@ -59,6 +61,8 @@ Section "Install" SecMain
     WriteRegDWORD HKCU "${REG_UNINST}" "NoModify"        1
     WriteRegDWORD HKCU "${REG_UNINST}" "NoRepair"        1
 
+    CreateShortCut  "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}"
+
     CreateDirectory "$SMPROGRAMS\${APP_NAME}"
     CreateShortCut  "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk"  "$INSTDIR\${APP_EXE}"
     CreateShortCut  "$SMPROGRAMS\${APP_NAME}\Uninstall.lnk"    "$INSTDIR\Uninstall.exe"
@@ -68,6 +72,8 @@ SectionEnd
 Section "Uninstall"
     ; Remove autostart entry if the user had enabled it via the tray menu.
     DeleteRegValue HKCU "${REG_RUN}" "${APP_NAME}"
+
+    Delete "$DESKTOP\${APP_NAME}.lnk"
 
     Delete "$INSTDIR\*.*"
     RMDir /r "$INSTDIR"
