@@ -157,7 +157,7 @@ echo "  OK – all references satisfied."
 
 # ── 5. Code sign ─────────────────────────────────────────────────────────────
 echo "==> Code signing..."
-if [ -n "$SIGN_ID" ]; then
+if [ -n "${SIGN_ID:-}" ]; then
     CSFLAGS=(--timestamp --options runtime)
 else
     SIGN_ID="-"
