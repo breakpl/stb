@@ -157,13 +157,14 @@ echo "  OK – all references satisfied."
 
 # ── 5. Code sign ─────────────────────────────────────────────────────────────
 echo "==> Code signing..."
+SIGN_ID="${SIGN_ID:-Developer ID Application: Dariusz Kalita (AWQLMYJKHR)}"
 for DYLIB in "$FRAMEWORKS"/*.dylib; do
     [ -f "$DYLIB" ] || continue
-    codesign --force --sign - --timestamp=none "$DYLIB"
+    codesign --force --sign "$SIGN_ID" --timestamp --options runtime "$DYLIB"
 done
-codesign --force --sign - --timestamp=none \
+codesign --force --sign "$SIGN_ID" --timestamp --options runtime \
          --entitlements "$SCRIPT_DIR/entitlements.plist" "$BINARY"
-codesign --force --deep --sign - --timestamp=none \
+codesign --force --deep --sign "$SIGN_ID" --timestamp --options runtime \
          --entitlements "$SCRIPT_DIR/entitlements.plist" "$APP_BUNDLE"
 echo "  OK – app signed."
 
@@ -181,6 +182,9 @@ hdiutil create \
     -srcfolder "$DMG_STAGE" \
     -ov -format UDZO \
     "$DIST_DIR/$DMG_NAME"
+
+codesign --force --sign "$SIGN_ID" --timestamp "$DIST_DIR/$DMG_NAME"
+echo "  OK – DMG signed."
 
 echo ""
 echo "==> Done: $DIST_DIR/$DMG_NAME"

@@ -20,8 +20,41 @@ jobs:
       - name: Install dependencies
         run: brew install wxwidgets curl
 
+      - name: Import signing certificate
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE }}
+          CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+          KEYCHAIN_PWD=$(openssl rand -hex 16)
+          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+          echo "$CERTIFICATE_BASE64" | base64 --decode -o "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CERTIFICATE_PWD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
       - name: Build package
+        env:
+          SIGN_ID: ${{ startsWith(github.ref, 'refs/tags/v') && 'Developer ID Application: Dariusz Kalita (AWQLMYJKHR)' || '' }}
         run: ./package_mac.sh
+
+      - name: Notarize
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          APPLE_ID: ${{ secrets.NOTARIZE_APPLE_ID }}
+          TEAM_ID: ${{ secrets.NOTARIZE_TEAM_ID }}
+          NOTARIZE_PWD: ${{ secrets.NOTARIZE_PASSWORD }}
+        run: |
+          DMG=$(ls dist/mac/*.dmg)
+          xcrun notarytool submit "$DMG" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$TEAM_ID" \
+            --password "$NOTARIZE_PWD" \
+            --wait
+          xcrun stapler staple "$DMG"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

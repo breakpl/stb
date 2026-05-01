@@ -888,7 +888,7 @@ void SprintToolBoxApp::FetchPublicSprint() {
     // Hardcoded public sprint URL with cache-busting timestamp
     wxDateTime now = wxDateTime::Now();
     wxString publicURL = wxString::Format(
-        "https://raw.githubusercontent.com/breakpl/stb/main/current-sprint.json?t=%lld",
+        "https://storage.googleapis.com/stb-current-sprint/current-sprint.json?t=%lld",
         now.GetValue().GetValue() / 1000
     );
     
