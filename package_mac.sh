@@ -157,14 +157,19 @@ echo "  OK – all references satisfied."
 
 # ── 5. Code sign ─────────────────────────────────────────────────────────────
 echo "==> Code signing..."
-SIGN_ID="${SIGN_ID:-Developer ID Application: Dariusz Kalita (AWQLMYJKHR)}"
+if [ -n "$SIGN_ID" ]; then
+    CSFLAGS=(--timestamp --options runtime)
+else
+    SIGN_ID="-"
+    CSFLAGS=(--timestamp=none)
+fi
 for DYLIB in "$FRAMEWORKS"/*.dylib; do
     [ -f "$DYLIB" ] || continue
-    codesign --force --sign "$SIGN_ID" --timestamp --options runtime "$DYLIB"
+    codesign --force --sign "$SIGN_ID" "${CSFLAGS[@]}" "$DYLIB"
 done
-codesign --force --sign "$SIGN_ID" --timestamp --options runtime \
+codesign --force --sign "$SIGN_ID" "${CSFLAGS[@]}" \
          --entitlements "$SCRIPT_DIR/entitlements.plist" "$BINARY"
-codesign --force --deep --sign "$SIGN_ID" --timestamp --options runtime \
+codesign --force --deep --sign "$SIGN_ID" "${CSFLAGS[@]}" \
          --entitlements "$SCRIPT_DIR/entitlements.plist" "$APP_BUNDLE"
 echo "  OK – app signed."
 
@@ -183,7 +188,7 @@ hdiutil create \
     -ov -format UDZO \
     "$DIST_DIR/$DMG_NAME"
 
-codesign --force --sign "$SIGN_ID" --timestamp "$DIST_DIR/$DMG_NAME"
+codesign --force --sign "$SIGN_ID" "${CSFLAGS[@]}" "$DIST_DIR/$DMG_NAME"
 echo "  OK – DMG signed."
 
 echo ""

@@ -36,13 +36,13 @@ jobs:
           security import "$RUNNER_TEMP/cert.p12" -P "$CERTIFICATE_PWD" \
             -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
           security list-keychain -d user -s "$KEYCHAIN_PATH"
           echo "==> Identities available after import:"
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+          echo "SIGN_ID=Developer ID Application: Dariusz Kalita (AWQLMYJKHR)" >> $GITHUB_ENV
 
       - name: Build package
-        env:
-          SIGN_ID: "${{ startsWith(github.ref, 'refs/tags/v') && 'Developer ID Application: Dariusz Kalita (AWQLMYJKHR)' || '' }}"
         run: ./package_mac.sh
 
       - name: Notarize
