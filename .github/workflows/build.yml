@@ -1,4 +1,4 @@
-name: Build SprintToolBox
+name: SprintToolBox
 
 on:
   push:
@@ -38,7 +38,7 @@ jobs:
 
       - name: Build package
         env:
-          SIGN_ID: ${{ startsWith(github.ref, 'refs/tags/v') && 'Developer ID Application: Dariusz Kalita (AWQLMYJKHR)' || '' }}
+          SIGN_ID: "${{ startsWith(github.ref, 'refs/tags/v') && 'Developer ID Application: Dariusz Kalita (AWQLMYJKHR)' || '' }}"
         run: ./package_mac.sh
 
       - name: Notarize
