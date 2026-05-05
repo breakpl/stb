@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout *)",
+      "Bash(git rm *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git fetch *)",
+      "Bash(git -C /Users/dariusz.kalita/sources/stb log --oneline origin/inst/windows)",
+      "Bash(git -C /Users/dariusz.kalita/sources/stb log --oneline HEAD)",
+      "Bash(git -C /Users/dariusz.kalita/DT/sources/stb log --oneline -8)",
+      "Bash(git *)",
+      "Bash(chmod +x *)"
+    ]
+  }
+}
