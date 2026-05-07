@@ -66,7 +66,7 @@ gcloud secrets add-iam-policy-binding "$SECRET_NAME" \
 log "Deploying Cloud Function..."
 gcloud functions deploy "$FUNCTION_NAME" \
   --gen2 \
-  --runtime=go122 \
+  --runtime=go124 \
   --region="$REGION" \
   --source="./functions/update-sprint" \
   --entry-point=UpdateSprint \

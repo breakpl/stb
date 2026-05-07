@@ -1,6 +1,6 @@
 module github.com/breakpl/stb/functions/update-sprint
 
-go 1.22
+go 1.24
 
 require (
 	cloud.google.com/go/secretmanager v1.13.5
