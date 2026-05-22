@@ -22,10 +22,22 @@ set(SOURCES
     src/TimeConverterDialog.cpp
     src/TimestampUtils.cpp
     src/JiraService.cpp
+    src/UpdateService.cpp
     src/Config.cpp
 )
 
 add_executable(${PROJECT_NAME} WIN32 MACOSX_BUNDLE ${SOURCES})
+
+# GitHub repo coordinates for the in-app updater. Override at configure
+# time with -DUPDATE_REPO_OWNER=... -DUPDATE_REPO_NAME=... if needed.
+set(UPDATE_REPO_OWNER "breakpl" CACHE STRING "GitHub owner for release checks")
+set(UPDATE_REPO_NAME  "stb"     CACHE STRING "GitHub repo for release checks")
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    APP_VERSION="${PROJECT_VERSION}"
+    UPDATE_REPO_OWNER="${UPDATE_REPO_OWNER}"
+    UPDATE_REPO_NAME="${UPDATE_REPO_NAME}"
+)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
     MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/Info.plist.in

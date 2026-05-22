@@ -7,6 +7,7 @@
 #include <wx/icon.h>
 #include <map>
 #include "JiraService.h"
+#include "UpdateService.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -41,9 +42,19 @@ private:
     void OnOpenConverter(wxCommandEvent& event);
     void OnOpenTimeConverter(wxCommandEvent& event);
     void OnQuit(wxCommandEvent& event);
+    void OnCheckUpdatesMenu(wxCommandEvent& event);
     void OnSprintUpdateTimer(wxTimerEvent& event);
     void OnRetryTimer(wxTimerEvent& event);
     void OnConfigWatchTimer(wxTimerEvent& event);
+    void OnUpdateCheckTimer(wxTimerEvent& event);
+
+    // silent=true: only show dialog if a newer non-skipped version exists.
+    // silent=false: also surface "you're up to date" / error messages.
+    void CheckForUpdates(bool silent);
+    void OnUpdateAvailable(const ReleaseInfo& info, bool silent);
+    void OnUpdateError(const wxString& error, const wxString& code, bool silent);
+    void DownloadAndLaunch(const ReleaseInfo& info);
+    void LaunchDownloadedAsset(const wxFileName& path);
 
     void OnDynamicMenuClick(wxCommandEvent& event);
     void OnToggleAutostart(wxCommandEvent& event);
@@ -64,10 +75,12 @@ private:
     ConverterDialog* m_converterDialog;
     TimeConverterDialog* m_timeConverterDialog;
     JiraService* m_jiraService;
+    UpdateService* m_updateService;
     Config* m_config;
     wxTimer* m_sprintUpdateTimer;
     wxTimer* m_configWatchTimer; // polls INI modification time
     wxTimer* m_retryTimer;      // active during error back-off
+    wxTimer* m_updateCheckTimer; // background updater (one-shot, restarted on fire)
 
     int      m_retryCount;      // attempts made in current retry window
     int      m_retryMaxCount;   // max attempts before giving up
@@ -92,9 +105,11 @@ enum {
     ID_OPEN_CONVERTER,
     ID_OPEN_TIME_CONVERTER,
     ID_QUIT,
+    ID_CHECK_UPDATES,
     ID_SPRINT_TIMER,
     ID_RETRY_TIMER,
     ID_CONFIG_WATCH_TIMER,
+    ID_UPDATE_CHECK_TIMER,
 
     ID_TOGGLE_AUTOSTART,
 

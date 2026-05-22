@@ -161,6 +161,19 @@ void Config::LoadMainMenu() {
     }
 }
 
+wxString Config::GetSkippedVersion() const {
+    wxFileConfig conf("SprintToolBox", "SprintToolBox",
+                      wxEmptyString, wxEmptyString, wxCONFIG_USE_LOCAL_FILE);
+    return conf.Read("/Updates/SkippedVersion", wxEmptyString);
+}
+
+void Config::SetSkippedVersion(const wxString& version) {
+    wxFileConfig conf("SprintToolBox", "SprintToolBox",
+                      wxEmptyString, wxEmptyString, wxCONFIG_USE_LOCAL_FILE);
+    conf.Write("/Updates/SkippedVersion", version);
+    conf.Flush();
+}
+
 void Config::LoadSubmenu(const wxString& section) {
     if (!wxFileExists(m_configPath) || m_subMenus.count(section) > 0) {
         return;
