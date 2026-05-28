@@ -2,6 +2,7 @@
 #include "ConverterDialog.h"
 #include "TimeConverterDialog.h"
 #include "JiraService.h"
+#include "UpdateService.h"
 #include "Config.h"
 #include <wx/clipbrd.h>
 #include <wx/datetime.h>
@@ -10,8 +11,26 @@
 #include <wx/stdpaths.h>
 #include <wx/filename.h>
 #include <wx/file.h>
+#include <wx/msgdlg.h>
+#include <wx/progdlg.h>
+#include <wx/utils.h>
 #include <curl/curl.h>
 #include <string>
+#include <thread>
+
+#if defined(__linux__)
+#include <sys/stat.h>
+#endif
+
+#ifndef APP_VERSION
+#define APP_VERSION "0.0.0"
+#endif
+#ifndef UPDATE_REPO_OWNER
+#define UPDATE_REPO_OWNER "breakpl"
+#endif
+#ifndef UPDATE_REPO_NAME
+#define UPDATE_REPO_NAME "stb"
+#endif
 
 #ifdef _WIN32
 #include <windows.h>
@@ -53,6 +72,8 @@ static const int ICON_FONT_SIZE_MAC = 14;  // SF Mono Regular – sized for attr
 static const int SPRINT_UPDATE_INTERVAL_MS  = 300000; // 5 minutes
 static const int NETWORK_RETRY_INTERVAL_MS  = 20000;  // 20 s  (window: 5 min)
 static const int NETWORK_RETRY_MAX_COUNT    = 15;     // 15 × 20 s = 5 min
+static const int UPDATE_CHECK_INITIAL_MS    = 30000;  // 30 s after launch
+static const int UPDATE_CHECK_INTERVAL_MS   = 6 * 60 * 60 * 1000; // 6 hours
 
 #ifdef _WIN32
 // ── Windows theme-change observer ────────────────────────────────────────────
@@ -81,10 +102,12 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_MENU(ID_OPEN_CONVERTER, SprintToolBoxApp::OnOpenConverter)
     EVT_MENU(ID_OPEN_TIME_CONVERTER, SprintToolBoxApp::OnOpenTimeConverter)
     EVT_MENU(ID_QUIT, SprintToolBoxApp::OnQuit)
+    EVT_MENU(ID_CHECK_UPDATES, SprintToolBoxApp::OnCheckUpdatesMenu)
     EVT_MENU(ID_TOGGLE_AUTOSTART, SprintToolBoxApp::OnToggleAutostart)
     EVT_TIMER(ID_SPRINT_TIMER, SprintToolBoxApp::OnSprintUpdateTimer)
     EVT_TIMER(ID_RETRY_TIMER,  SprintToolBoxApp::OnRetryTimer)
     EVT_TIMER(ID_CONFIG_WATCH_TIMER, SprintToolBoxApp::OnConfigWatchTimer)
+    EVT_TIMER(ID_UPDATE_CHECK_TIMER, SprintToolBoxApp::OnUpdateCheckTimer)
 
     EVT_MENU_RANGE(ID_DYNAMIC_MENU_START, ID_DYNAMIC_MENU_START + 999, SprintToolBoxApp::OnDynamicMenuClick)
     // macOS clicks are routed through StatusItemClickHandler; only Linux/Windows need this.
@@ -101,10 +124,12 @@ SprintToolBoxApp::SprintToolBoxApp()
     , m_converterDialog(nullptr)
     , m_timeConverterDialog(nullptr)
     , m_jiraService(nullptr)
+    , m_updateService(nullptr)
     , m_config(nullptr)
     , m_sprintUpdateTimer(nullptr)
     , m_configWatchTimer(nullptr)
     , m_retryTimer(nullptr)
+    , m_updateCheckTimer(nullptr)
 
     , m_retryCount(0)
     , m_retryMaxCount(0)
@@ -140,6 +165,10 @@ SprintToolBoxApp::SprintToolBoxApp()
     // Retry timer (started on demand when a transient error occurs)
     m_retryTimer = new wxTimer(this, ID_RETRY_TIMER);
 
+    // Updater
+    m_updateService = new UpdateService(UPDATE_REPO_OWNER, UPDATE_REPO_NAME);
+    m_updateCheckTimer = new wxTimer(this, ID_UPDATE_CHECK_TIMER);
+    m_updateCheckTimer->Start(UPDATE_CHECK_INITIAL_MS, wxTIMER_ONE_SHOT);
 
     // Config-file watcher: poll the INI modification time every 10 s so
     // that credential / setting changes are picked up promptly.
@@ -236,9 +265,20 @@ SprintToolBoxApp::~SprintToolBoxApp() {
         m_retryTimer = nullptr;
     }
 
+    if (m_updateCheckTimer) {
+        m_updateCheckTimer->Stop();
+        delete m_updateCheckTimer;
+        m_updateCheckTimer = nullptr;
+    }
+
     if (m_jiraService) {
         delete m_jiraService;
         m_jiraService = nullptr;
+    }
+
+    if (m_updateService) {
+        delete m_updateService;
+        m_updateService = nullptr;
     }
     
     if (m_converterDialog) {
@@ -631,8 +671,15 @@ wxMenu* SprintToolBoxApp::BuildPopupMenu() {
     wxMenuItem* autostartItem = menu->AppendCheckItem(ID_TOGGLE_AUTOSTART, "Start at login");
     autostartItem->Check(IsAutostartEnabled());
 
+    menu->Append(ID_CHECK_UPDATES, "Check for updates...");
+
+    menu->AppendSeparator();
+    wxMenuItem* versionItem = menu->Append(wxID_ANY,
+        wxString::Format("Version %s", APP_VERSION));
+    versionItem->Enable(false);
+
     menu->Append(ID_QUIT, "Quit");
-    
+
     return menu;
 }
 
@@ -883,6 +930,152 @@ void SprintToolBoxApp::OnSprintError(const wxString& error, const wxString& erro
     }
 }
 
+
+void SprintToolBoxApp::DownloadAndLaunch(const ReleaseInfo& info) {
+    if (!info.HasAsset()) {
+        // No matching platform asset — release page in browser is the best we can do.
+        wxLaunchDefaultBrowser(info.htmlUrl);
+        return;
+    }
+
+    auto* progressDlg = new wxProgressDialog(
+        "Downloading update",
+        wxString::Format("Downloading %s...", info.assetName),
+        100, nullptr,
+        wxPD_APP_MODAL | wxPD_AUTO_HIDE | wxPD_SMOOTH);
+    progressDlg->Show();
+
+    std::thread([this, info, progressDlg]() {
+        wxFileName downloadedPath;
+        wxString errorMsg;
+        try {
+            downloadedPath = m_updateService->DownloadAsset(info,
+                [progressDlg](double fraction) {
+                    int pct = static_cast<int>(fraction * 100.0);
+                    if (pct < 0)  pct = 0;
+                    if (pct > 99) pct = 99;
+                    wxTheApp->CallAfter([progressDlg, pct]() {
+                        if (progressDlg) progressDlg->Update(pct);
+                    });
+                });
+        } catch (const std::exception& e) {
+            errorMsg = wxString::FromUTF8(e.what());
+        } catch (...) {
+            errorMsg = "Unknown download error";
+        }
+
+        wxTheApp->CallAfter([this, progressDlg, downloadedPath, errorMsg]() {
+            progressDlg->Update(100); // triggers wxPD_AUTO_HIDE
+            progressDlg->Destroy();
+            if (!errorMsg.IsEmpty()) {
+                wxMessageBox(
+                    wxString::Format("Download failed:\n\n%s", errorMsg),
+                    "Update", wxOK | wxICON_ERROR);
+                return;
+            }
+            LaunchDownloadedAsset(downloadedPath);
+        });
+    }).detach();
+}
+
+void SprintToolBoxApp::LaunchDownloadedAsset(const wxFileName& path) {
+    const wxString fullPath = path.GetFullPath();
+#if defined(__linux__)
+    // AppImage assets must be executable before the desktop can run them.
+    if (fullPath.EndsWith(".AppImage")) {
+        ::chmod(fullPath.ToUTF8(), 0755);
+    }
+#endif
+    if (!wxLaunchDefaultApplication(fullPath)) {
+        wxMessageBox(
+            wxString::Format("Could not open the downloaded file:\n%s", fullPath),
+            "Update", wxOK | wxICON_ERROR);
+    }
+}
+
+void SprintToolBoxApp::OnUpdateCheckTimer(wxTimerEvent& event) {
+    CheckForUpdates(/*silent=*/true);
+    // Reschedule for the next interval.
+    if (m_updateCheckTimer) {
+        m_updateCheckTimer->Start(UPDATE_CHECK_INTERVAL_MS, wxTIMER_ONE_SHOT);
+    }
+}
+
+void SprintToolBoxApp::OnCheckUpdatesMenu(wxCommandEvent& event) {
+    CheckForUpdates(/*silent=*/false);
+}
+
+void SprintToolBoxApp::CheckForUpdates(bool silent) {
+    if (!m_updateService) return;
+    wxLogMessage("Update check requested (silent=%d).", silent ? 1 : 0);
+
+    // Run the HTTP request off the UI thread; marshal the result back via
+    // CallAfter so the dialog is shown on the main thread.
+    std::thread([this, silent]() {
+        m_updateService->SetSuccessCallback(
+            [this, silent](const ReleaseInfo& info) {
+                CallAfter([this, info, silent]() {
+                    OnUpdateAvailable(info, silent);
+                });
+            });
+        m_updateService->SetErrorCallback(
+            [this, silent](const wxString& msg, const wxString& code) {
+                CallAfter([this, msg, code, silent]() {
+                    OnUpdateError(msg, code, silent);
+                });
+            });
+        m_updateService->CheckForUpdates();
+    }).detach();
+}
+
+void SprintToolBoxApp::OnUpdateAvailable(const ReleaseInfo& info, bool silent) {
+    const bool isNewer = UpdateService::IsNewerThanCurrent(info.tag);
+    if (!isNewer) {
+        if (!silent) {
+            wxMessageBox(
+                wxString::Format("SprintToolBox %s is the latest version.", APP_VERSION),
+                "No updates available", wxOK | wxICON_INFORMATION);
+        }
+        return;
+    }
+
+    if (silent && m_config &&
+        m_config->GetSkippedVersion() == info.version) {
+        wxLogMessage("Update %s suppressed (user skipped this version).", info.version);
+        return;
+    }
+
+    wxString notes = info.body;
+    if (notes.length() > 500) notes = notes.Left(500) + "...";
+
+    wxString message = wxString::Format(
+        "SprintToolBox %s is available.\nYou have %s.",
+        info.version, APP_VERSION);
+    if (!notes.IsEmpty()) {
+        message += "\n\nRelease notes:\n" + notes;
+    }
+
+    wxMessageDialog dlg(nullptr, message, "Update available",
+                        wxYES_NO | wxCANCEL | wxICON_INFORMATION);
+    dlg.SetYesNoCancelLabels("Download...", "Later", "Skip this version");
+
+    const int result = dlg.ShowModal();
+    if (result == wxID_YES) {
+        DownloadAndLaunch(info);
+    } else if (result == wxID_CANCEL) {
+        if (m_config) m_config->SetSkippedVersion(info.version);
+        wxLogMessage("User skipped update %s.", info.version);
+    }
+}
+
+void SprintToolBoxApp::OnUpdateError(const wxString& error,
+                                     const wxString& code, bool silent) {
+    wxLogWarning("Update check failed: %s (%s)", error, code);
+    if (silent) return;
+    wxMessageBox(
+        wxString::Format("Could not check for updates:\n\n%s", error),
+        "Update check failed", wxOK | wxICON_WARNING);
+}
 
 void SprintToolBoxApp::FetchPublicSprint() {
     // Hardcoded public sprint URL with cache-busting timestamp

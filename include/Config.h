@@ -51,6 +51,11 @@ public:
     // Menu items
     std::vector<MenuItem> GetMainMenuItems() const { return m_mainMenuItems; }
     std::map<wxString, std::vector<MenuItem>> GetSubMenus() const { return m_subMenus; }
+
+    // Updater state. Stored in a separate writable file so the user-edited
+    // SprintToolBox.ini is not rewritten (which would lose comments/order).
+    wxString GetSkippedVersion() const;
+    void     SetSkippedVersion(const wxString& version);
     
 private:
     Config();
