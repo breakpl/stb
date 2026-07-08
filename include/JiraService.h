@@ -26,8 +26,18 @@ struct SprintInfo {
     int GetDaysPassed() const {
         if (startDate.IsValid()) {
             wxDateTime now = wxDateTime::Now();
-            wxTimeSpan diff = now.Subtract(startDate);
-            return diff.GetDays();
+            now.ResetTime();
+            wxDateTime day = startDate;
+            day.ResetTime();
+            int count = 0;
+            while (day < now) {
+                wxDateTime::WeekDay wd = day.GetWeekDay();
+                if (wd != wxDateTime::Sat && wd != wxDateTime::Sun) {
+                    count++;
+                }
+                day += wxDateSpan::Day();
+            }
+            return count;
         }
         return -1;
     }

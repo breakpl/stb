@@ -41,6 +41,7 @@
 #include <wx/osx/private.h>
 #import <Cocoa/Cocoa.h>
 #import <objc/runtime.h>
+#import <ServiceManagement/ServiceManagement.h>
 
 // Observes system theme changes and forwards them to the C++ owner.
 @interface ThemeChangeObserver : NSObject
@@ -759,6 +760,9 @@ void SprintToolBoxApp::OnQuit(wxCommandEvent& event) {
 
 bool SprintToolBoxApp::IsAutostartEnabled() {
 #ifdef __WXOSX__
+    if (@available(macOS 13.0, *)) {
+        return [SMAppService mainAppService].status == SMAppServiceStatusEnabled;
+    }
     NSString* plistPath = [[NSHomeDirectory()
         stringByAppendingPathComponent:@"Library/LaunchAgents"]
         stringByAppendingPathComponent:@"com.sprinttoolbox.plist"];
@@ -781,16 +785,23 @@ bool SprintToolBoxApp::IsAutostartEnabled() {
 
 void SprintToolBoxApp::SetAutostart(bool enable) {
 #ifdef __WXOSX__
+    if (@available(macOS 13.0, *)) {
+        NSError* err = nil;
+        if (enable)
+            [[SMAppService mainAppService] registerAndReturnError:&err];
+        else
+            [[SMAppService mainAppService] unregisterAndReturnError:&err];
+        return;
+    }
     NSString* laDir = [NSHomeDirectory()
         stringByAppendingPathComponent:@"Library/LaunchAgents"];
     NSString* plistPath = [laDir
         stringByAppendingPathComponent:@"com.sprinttoolbox.plist"];
     if (enable) {
-        wxString exePath = wxStandardPaths::Get().GetExecutablePath();
-        NSString* exe = [NSString stringWithUTF8String:exePath.utf8_str()];
+        NSString* bundlePath = [[NSBundle mainBundle] bundlePath];
         NSDictionary* plist = @{
             @"Label": @"com.sprinttoolbox",
-            @"ProgramArguments": @[exe],
+            @"ProgramArguments": @[@"/usr/bin/open", @"-a", bundlePath],
             @"RunAtLoad": @YES,
             @"KeepAlive": @NO,
             @"ProcessType": @"Interactive"

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(SprintToolBox VERSION 1.0.18)
+project(SprintToolBox VERSION 1.0.19)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -47,7 +47,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 if(APPLE)
     set_source_files_properties(src/SprintToolBoxApp.cpp PROPERTIES
         COMPILE_FLAGS "-x objective-c++")
-    target_link_libraries(${PROJECT_NAME} ${wxWidgets_LIBRARIES} ${CURL_LIBRARIES} "-framework Cocoa")
+    target_link_libraries(${PROJECT_NAME} ${wxWidgets_LIBRARIES} ${CURL_LIBRARIES} "-framework Cocoa" "-framework ServiceManagement")
     
     # Copy SprintToolBox.ini to bundle Resources
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
