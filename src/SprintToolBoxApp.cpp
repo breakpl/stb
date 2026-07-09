@@ -750,11 +750,11 @@ void SprintToolBoxApp::OnQuit(wxCommandEvent& event) {
             (void)CFBridgingRelease(m_statusItemHandler);
             m_statusItemHandler = nullptr;
         }
-        wxExit();
+        _exit(0);
     });
 #else
     RemoveIcon();
-    wxExit();
+    _exit(0);
 #endif
 }
 
