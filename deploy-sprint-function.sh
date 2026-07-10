@@ -79,12 +79,12 @@ FUNCTION_URL=$(gcloud functions describe "$FUNCTION_NAME" \
   --gen2 --region="$REGION" --format="value(serviceConfig.uri)")
 log "Function URL: $FUNCTION_URL"
 
-# Cloud Scheduler — daily at 06:00 UTC
+# Cloud Scheduler — daily at 04:00 UTC
 log "Creating Cloud Scheduler job..."
 if gcloud scheduler jobs describe "$SCHEDULER_JOB" --location="$REGION" &>/dev/null; then
   gcloud scheduler jobs update http "$SCHEDULER_JOB" \
     --location="$REGION" \
-    --schedule="0 6 * * *" \
+    --schedule="0 4 * * *" \
     --uri="$FUNCTION_URL" \
     --oidc-service-account-email="$SA_EMAIL" \
     --quiet
@@ -92,7 +92,7 @@ if gcloud scheduler jobs describe "$SCHEDULER_JOB" --location="$REGION" &>/dev/n
 else
   gcloud scheduler jobs create http "$SCHEDULER_JOB" \
     --location="$REGION" \
-    --schedule="0 6 * * *" \
+    --schedule="0 4 * * *" \
     --uri="$FUNCTION_URL" \
     --oidc-service-account-email="$SA_EMAIL" \
     --time-zone="UTC" \
