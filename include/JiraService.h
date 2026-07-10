@@ -37,7 +37,7 @@ struct SprintInfo {
                 }
                 day += wxDateSpan::Day();
             }
-            return count;
+            return count + 1;
         }
         return -1;
     }
