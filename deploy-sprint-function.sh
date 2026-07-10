@@ -41,32 +41,32 @@ fi
 log "Making bucket objects publicly readable..."
 gsutil iam ch allUsers:objectViewer "gs://$BUCKET"
 
-# Secret Manager
-log "Storing Jira token in Secret Manager..."
-if gcloud secrets describe "$SECRET_NAME" --project="$PROJECT_ID" &>/dev/null; then
-  echo -n "$JIRA_TOKEN" | gcloud secrets versions add "$SECRET_NAME" --data-file=-
-  log "Secret version added."
-else
-  echo -n "$JIRA_TOKEN" | gcloud secrets create "$SECRET_NAME" \
-    --data-file=- \
-    --replication-policy=automatic
-  log "Secret created."
-fi
+# Secret Manager — skipped (secret already seeded; uncomment to re-seed)
+# log "Storing Jira token in Secret Manager..."
+# if gcloud secrets describe "$SECRET_NAME" --project="$PROJECT_ID" &>/dev/null; then
+#   echo -n "$JIRA_TOKEN" | gcloud secrets versions add "$SECRET_NAME" --data-file=-
+#   log "Secret version added."
+# else
+#   echo -n "$JIRA_TOKEN" | gcloud secrets create "$SECRET_NAME" \
+#     --data-file=- \
+#     --replication-policy=automatic
+#   log "Secret created."
+# fi
 
 # Grant the default Cloud Functions Gen 2 SA (Compute Engine default) access to the secret
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
 SA_EMAIL="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-log "Granting secret access to $SA_EMAIL"
-gcloud secrets add-iam-policy-binding "$SECRET_NAME" \
-  --member="serviceAccount:$SA_EMAIL" \
-  --role="roles/secretmanager.secretAccessor" \
-  --quiet
+# log "Granting secret access to $SA_EMAIL"
+# gcloud secrets add-iam-policy-binding "$SECRET_NAME" \
+#   --member="serviceAccount:$SA_EMAIL" \
+#   --role="roles/secretmanager.secretAccessor" \
+#   --quiet
 
 # Deploy Cloud Function (Gen 2)
 log "Deploying Cloud Function..."
 gcloud functions deploy "$FUNCTION_NAME" \
   --gen2 \
-  --runtime=go124 \
+  --runtime=go126 \
   --region="$REGION" \
   --source="./functions/update-sprint" \
   --entry-point=UpdateSprint \
