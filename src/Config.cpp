@@ -4,6 +4,7 @@
 #include <wx/log.h>
 #include <wx/txtstrm.h>
 #include <wx/wfstream.h>
+#include <wx/file.h>
 
 Config& Config::GetInstance() {
     static Config instance;
@@ -172,6 +173,46 @@ void Config::SetSkippedVersion(const wxString& version) {
                       wxEmptyString, wxEmptyString, wxCONFIG_USE_LOCAL_FILE);
     conf.Write("/Updates/SkippedVersion", version);
     conf.Flush();
+}
+
+void Config::SaveMenuOrder(const std::vector<MenuItem>& items) {
+    if (!wxFileExists(m_configPath)) return;
+
+    wxFileInputStream fis(m_configPath);
+    if (!fis.IsOk()) return;
+    wxTextInputStream tis(fis);
+
+    wxArrayString lines;
+    while (!fis.Eof()) {
+        lines.Add(tis.ReadLine());
+    }
+
+    int sectionStart = -1, sectionEnd = (int)lines.GetCount();
+    for (int i = 0; i < (int)lines.GetCount(); i++) {
+        wxString t = lines[i].Trim().Trim(false);
+        if (t == "[MainMenu]") { sectionStart = i; continue; }
+        if (sectionStart != -1 && t.StartsWith("[")) { sectionEnd = i; break; }
+    }
+    if (sectionStart == -1) return;
+
+    wxString out;
+    for (int i = 0; i < sectionStart; i++)
+        out += lines[i] + "\n";
+    out += "[MainMenu]\n";
+    for (const auto& item : items) {
+        if (item.isSeparator)
+            out += "---=separator\n";
+        else
+            out += item.name + "=" + item.url + "\n";
+    }
+    for (int i = sectionEnd; i < (int)lines.GetCount(); i++)
+        out += lines[i] + "\n";
+
+    wxFile f(m_configPath, wxFile::write);
+    if (!f.IsOpened()) return;
+    f.Write(out, wxConvUTF8);
+
+    Reload();
 }
 
 void Config::LoadSubmenu(const wxString& section) {

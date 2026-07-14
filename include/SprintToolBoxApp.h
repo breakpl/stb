@@ -15,6 +15,7 @@
 
 class ConverterDialog;
 class TimeConverterDialog;
+class CustomizeMenuDialog;
 class Config;
 
 class SprintToolBoxApp : public wxTaskBarIcon {
@@ -58,6 +59,7 @@ private:
 
     void OnDynamicMenuClick(wxCommandEvent& event);
     void OnToggleAutostart(wxCommandEvent& event);
+    void OnCustomizeMenu(wxCommandEvent& event);
 
     bool IsAutostartEnabled();
     void SetAutostart(bool enable);
@@ -74,6 +76,7 @@ private:
     bool m_menuShowing;         // guard against re-entrant ShowContextMenu()
     ConverterDialog* m_converterDialog;
     TimeConverterDialog* m_timeConverterDialog;
+    CustomizeMenuDialog* m_customizeMenuDialog;
     JiraService* m_jiraService;
     UpdateService* m_updateService;
     Config* m_config;
@@ -112,6 +115,7 @@ enum {
     ID_UPDATE_CHECK_TIMER,
 
     ID_TOGGLE_AUTOSTART,
+    ID_CUSTOMIZE_MENU,
 
     ID_DYNAMIC_MENU_START = wxID_HIGHEST + 1000  // Base ID for dynamic menu items
 };

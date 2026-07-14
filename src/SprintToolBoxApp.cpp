@@ -1,6 +1,7 @@
 #include "SprintToolBoxApp.h"
 #include "ConverterDialog.h"
 #include "TimeConverterDialog.h"
+#include "CustomizeMenuDialog.h"
 #include "JiraService.h"
 #include "UpdateService.h"
 #include "Config.h"
@@ -105,6 +106,7 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_MENU(ID_QUIT, SprintToolBoxApp::OnQuit)
     EVT_MENU(ID_CHECK_UPDATES, SprintToolBoxApp::OnCheckUpdatesMenu)
     EVT_MENU(ID_TOGGLE_AUTOSTART, SprintToolBoxApp::OnToggleAutostart)
+    EVT_MENU(ID_CUSTOMIZE_MENU,  SprintToolBoxApp::OnCustomizeMenu)
     EVT_TIMER(ID_SPRINT_TIMER, SprintToolBoxApp::OnSprintUpdateTimer)
     EVT_TIMER(ID_RETRY_TIMER,  SprintToolBoxApp::OnRetryTimer)
     EVT_TIMER(ID_CONFIG_WATCH_TIMER, SprintToolBoxApp::OnConfigWatchTimer)
@@ -124,6 +126,7 @@ SprintToolBoxApp::SprintToolBoxApp()
     : wxTaskBarIcon()
     , m_converterDialog(nullptr)
     , m_timeConverterDialog(nullptr)
+    , m_customizeMenuDialog(nullptr)
     , m_jiraService(nullptr)
     , m_updateService(nullptr)
     , m_config(nullptr)
@@ -669,6 +672,10 @@ wxMenu* SprintToolBoxApp::BuildPopupMenu() {
     
     menu->AppendSeparator();
 
+    menu->Append(ID_CUSTOMIZE_MENU, "Customize Menu...");
+
+    menu->AppendSeparator();
+
     wxMenuItem* autostartItem = menu->AppendCheckItem(ID_TOGGLE_AUTOSTART, "Start at login");
     autostartItem->Check(IsAutostartEnabled());
 
@@ -862,6 +869,22 @@ void SprintToolBoxApp::SetAutostart(bool enable) {
 
 void SprintToolBoxApp::OnToggleAutostart(wxCommandEvent& event) {
     SetAutostart(!IsAutostartEnabled());
+}
+
+void SprintToolBoxApp::OnCustomizeMenu(wxCommandEvent& event) {
+    std::vector<MenuItem> items = m_config->GetMainMenuItems();
+    CallAfter([this, items]() {
+        if (!m_customizeMenuDialog) {
+            m_customizeMenuDialog = new CustomizeMenuDialog(nullptr, items);
+        } else {
+            // Re-initialise with current order each time it's opened.
+            delete m_customizeMenuDialog;
+            m_customizeMenuDialog = new CustomizeMenuDialog(nullptr, items);
+        }
+        if (m_customizeMenuDialog->ShowModal() == wxID_OK) {
+            m_config->SaveMenuOrder(m_customizeMenuDialog->GetReorderedItems());
+        }
+    });
 }
 
 void SprintToolBoxApp::OnSprintUpdateTimer(wxTimerEvent& event) {
