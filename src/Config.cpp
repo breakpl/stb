@@ -1,6 +1,7 @@
 #include "Config.h"
 #include <wx/stdpaths.h>
 #include <wx/filename.h>
+#include <wx/filefn.h>
 #include <wx/log.h>
 #include <wx/txtstrm.h>
 #include <wx/wfstream.h>
@@ -27,23 +28,27 @@ void Config::Reload() {
 }
 
 wxString Config::FindConfigFile() const {
-    wxArrayString searchPaths;
+    wxString homePath   = wxGetHomeDir() + "/SprintToolBox.ini";
+    wxString bundlePath = wxStandardPaths::Get().GetResourcesDir() + "/SprintToolBox.ini";
 
-    // User home directory – primary location for user's personal config
-    searchPaths.Add(wxGetHomeDir() + "/SprintToolBox.ini");
-
-    // Bundled Resources – fallback config shipped with the app
-    searchPaths.Add(wxStandardPaths::Get().GetResourcesDir() + "/SprintToolBox.ini");
-
-    for (size_t i = 0; i < searchPaths.GetCount(); i++) {
-        if (wxFileExists(searchPaths[i])) {
-            wxLogMessage("Found config at: %s", searchPaths[i]);
-            return searchPaths[i];
-        }
+    if (wxFileExists(homePath)) {
+        wxLogMessage("Found config at: %s", homePath);
+        return homePath;
     }
 
-    wxLogWarning("SprintToolBox.ini not found. Place it at: %s", wxGetHomeDir() + "/SprintToolBox.ini");
-    return wxGetHomeDir() + "/SprintToolBox.ini";
+    // Bundle ships a default config. Copy it to the writable home location so
+    // subsequent saves don't hit the read-only app bundle.
+    if (wxFileExists(bundlePath)) {
+        if (wxCopyFile(bundlePath, homePath)) {
+            wxLogMessage("Copied default config from bundle to: %s", homePath);
+            return homePath;
+        }
+        wxLogWarning("Could not copy config to home dir; falling back to bundle (read-only): %s", bundlePath);
+        return bundlePath;
+    }
+
+    wxLogWarning("SprintToolBox.ini not found. Place it at: %s", homePath);
+    return homePath;
 }
 
 bool Config::HasConfigFileChanged() const {
