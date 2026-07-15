@@ -10,17 +10,6 @@ On first launch the application copies the bundled `SprintToolBox.ini` template 
 
 The app checks `~/SprintToolBox.ini` for changes every **10 seconds** and reloads automatically — no restart needed. This applies to all sections: Jira credentials, display toggles, and menu layout.
 
-### [JIRA] section
-
-Connects the app to your Jira instance so it can display the current sprint number in the dock icon.
-
-| Key | Description |
-|-----|-------------|
-| `Email` | Your Atlassian account e-mail |
-| `APIToken` | Personal API token — generate one at id.atlassian.com → Security → API tokens |
-| `BaseURL` | Root URL of your Jira site, e.g. `https://your-org.atlassian.net` |
-| `BoardID` | Numeric ID of the Scrum board whose active sprint is shown (find it in the board URL) |
-
 ### [Display] section
 
 Toggles individual menu items on or off. Any of the standard boolean strings are accepted: `1`/`true`/`yes` to show, `0`/`false`/`no` to hide.
