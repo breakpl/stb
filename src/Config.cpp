@@ -12,7 +12,7 @@ Config& Config::GetInstance() {
     return instance;
 }
 
-Config::Config() : m_jiraBoardID(0), m_configModTime(0),
+Config::Config() : m_configModTime(0),
                    m_showUnixTimestamp(true), m_showZuluTimestamp(true),
                    m_showTimeConverter(true), m_showHexDecConverter(true) {
     LoadConfig();
@@ -89,22 +89,6 @@ void Config::LoadConfig() {
         wxString line = text.ReadLine().Trim();
         if (line.StartsWith("[") && line.EndsWith("]")) {
             currentSection = line.SubString(1, line.Length() - 2);
-        }
-        if (currentSection == "JIRA" && !line.IsEmpty() && !line.StartsWith("#")) {
-            int pos = line.Find('=');
-            if (pos != wxNOT_FOUND) {
-                wxString key = line.Left(pos).Trim();
-                wxString value = line.Mid(pos + 1).Trim();
-                if (key.CmpNoCase("Email") == 0) m_jiraEmail = value;
-                if (key.CmpNoCase("APIToken") == 0) m_jiraToken = value;
-                if (key.CmpNoCase("BaseURL") == 0) m_jiraBaseURL = value;
-                if (key.CmpNoCase("BoardID") == 0) {
-                    long boardId;
-                    if (value.ToLong(&boardId)) {
-                        m_jiraBoardID = (int)boardId;
-                    }
-                }
-            }
         }
         if (currentSection == "Display" && !line.IsEmpty() && !line.StartsWith("#")) {
             int pos = line.Find('=');

@@ -45,7 +45,6 @@ private:
     void OnQuit(wxCommandEvent& event);
     void OnCheckUpdatesMenu(wxCommandEvent& event);
     void OnSprintUpdateTimer(wxTimerEvent& event);
-    void OnRetryTimer(wxTimerEvent& event);
     void OnConfigWatchTimer(wxTimerEvent& event);
     void OnUpdateCheckTimer(wxTimerEvent& event);
 
@@ -68,7 +67,6 @@ private:
     void UpdateSprint();
     void FetchPublicSprint();  // Fetch from GitHub public URL
     void OnSprintFetched(const SprintInfo& sprint);
-    void OnSprintError(const wxString& error, const wxString& errorCode);
     
     wxString m_unixTimestamp;
     wxString m_zuluTimestamp;
@@ -77,17 +75,12 @@ private:
     ConverterDialog* m_converterDialog;
     TimeConverterDialog* m_timeConverterDialog;
     CustomizeMenuDialog* m_customizeMenuDialog;
-    JiraService* m_jiraService;
     UpdateService* m_updateService;
     Config* m_config;
     wxTimer* m_sprintUpdateTimer;
     wxTimer* m_configWatchTimer; // polls INI modification time
-    wxTimer* m_retryTimer;      // active during error back-off
     wxTimer* m_updateCheckTimer; // background updater (one-shot, restarted on fire)
 
-    int      m_retryCount;      // attempts made in current retry window
-    int      m_retryMaxCount;   // max attempts before giving up
-    bool     m_useFallbackMode; // true if using public GitHub URL instead of JIRA
     bool     m_updateAvailable; // true when a newer version was silently detected
 #ifdef __WXOSX__
     void* m_themeObserver;      // NSObject for theme change notifications
@@ -111,7 +104,6 @@ enum {
     ID_QUIT,
     ID_CHECK_UPDATES,
     ID_SPRINT_TIMER,
-    ID_RETRY_TIMER,
     ID_CONFIG_WATCH_TIMER,
     ID_UPDATE_CHECK_TIMER,
 

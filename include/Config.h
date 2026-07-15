@@ -36,12 +36,6 @@ public:
     // since the last LoadConfig() / Reload().  Cheap stat()-based check.
     bool HasConfigFileChanged() const;
     
-    // JIRA credentials
-    wxString GetJiraEmail() const { return m_jiraEmail; }
-    wxString GetJiraToken() const { return m_jiraToken; }
-    wxString GetJiraBaseURL() const { return m_jiraBaseURL; }
-    int GetJiraBoardID() const { return m_jiraBoardID; }
-    
     // Menu visibility options
     bool GetShowUnixTimestamp() const { return m_showUnixTimestamp; }
     bool GetShowZuluTimestamp() const { return m_showZuluTimestamp; }
@@ -71,10 +65,6 @@ private:
     
     wxString m_configPath;
     time_t   m_configModTime;   // last-seen modification time of the INI file
-    wxString m_jiraEmail;
-    wxString m_jiraToken;
-    wxString m_jiraBaseURL;
-    int m_jiraBoardID;
     bool m_showUnixTimestamp;
     bool m_showZuluTimestamp;
     bool m_showTimeConverter;

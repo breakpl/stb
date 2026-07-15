@@ -108,7 +108,6 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_MENU(ID_TOGGLE_AUTOSTART, SprintToolBoxApp::OnToggleAutostart)
     EVT_MENU(ID_CUSTOMIZE_MENU,  SprintToolBoxApp::OnCustomizeMenu)
     EVT_TIMER(ID_SPRINT_TIMER, SprintToolBoxApp::OnSprintUpdateTimer)
-    EVT_TIMER(ID_RETRY_TIMER,  SprintToolBoxApp::OnRetryTimer)
     EVT_TIMER(ID_CONFIG_WATCH_TIMER, SprintToolBoxApp::OnConfigWatchTimer)
     EVT_TIMER(ID_UPDATE_CHECK_TIMER, SprintToolBoxApp::OnUpdateCheckTimer)
 
@@ -127,20 +126,14 @@ SprintToolBoxApp::SprintToolBoxApp()
     , m_converterDialog(nullptr)
     , m_timeConverterDialog(nullptr)
     , m_customizeMenuDialog(nullptr)
-    , m_jiraService(nullptr)
     , m_updateService(nullptr)
     , m_config(nullptr)
     , m_sprintUpdateTimer(nullptr)
     , m_configWatchTimer(nullptr)
-    , m_retryTimer(nullptr)
     , m_updateCheckTimer(nullptr)
-
-    , m_retryCount(0)
-    , m_retryMaxCount(0)
     , m_currentIconText("...")
     , m_currentDaysPassed(-1)
     , m_menuShowing(false)
-    , m_useFallbackMode(false)
     , m_updateAvailable(false)
 #ifdef __WXOSX__
     , m_themeObserver(nullptr)
@@ -153,22 +146,10 @@ SprintToolBoxApp::SprintToolBoxApp()
 {
     // Initialize configuration
     m_config = & Config::GetInstance();
-    
-    // Initialize JIRA service
-    m_jiraService = new JiraService();
-    m_jiraService->SetSuccessCallback([this](const SprintInfo& sprint) {
-        OnSprintFetched(sprint);
-    });
-    m_jiraService->SetErrorCallback([this](const wxString& error, const wxString& code) {
-        OnSprintError(error, code);
-    });
-    
+
     // Setup timer for periodic sprint updates
     m_sprintUpdateTimer = new wxTimer(this, ID_SPRINT_TIMER);
     m_sprintUpdateTimer->Start(SPRINT_UPDATE_INTERVAL_MS);
-
-    // Retry timer (started on demand when a transient error occurs)
-    m_retryTimer = new wxTimer(this, ID_RETRY_TIMER);
 
     // Updater
     m_updateService = new UpdateService(UPDATE_REPO_OWNER, UPDATE_REPO_NAME);
@@ -264,21 +245,10 @@ SprintToolBoxApp::~SprintToolBoxApp() {
         m_configWatchTimer = nullptr;
     }
 
-    if (m_retryTimer) {
-        m_retryTimer->Stop();
-        delete m_retryTimer;
-        m_retryTimer = nullptr;
-    }
-
     if (m_updateCheckTimer) {
         m_updateCheckTimer->Stop();
         delete m_updateCheckTimer;
         m_updateCheckTimer = nullptr;
-    }
-
-    if (m_jiraService) {
-        delete m_jiraService;
-        m_jiraService = nullptr;
     }
 
     if (m_updateService) {
@@ -548,11 +518,9 @@ void SprintToolBoxApp::ShowContextMenu() {
     // the main thread while the popup is visible.
     bool sprintWasRunning = m_sprintUpdateTimer && m_sprintUpdateTimer->IsRunning();
     bool configWasRunning = m_configWatchTimer  && m_configWatchTimer->IsRunning();
-    bool retryWasRunning  = m_retryTimer        && m_retryTimer->IsRunning();
 
     if (sprintWasRunning)   m_sprintUpdateTimer->Stop();
     if (configWasRunning)   m_configWatchTimer->Stop();
-    if (retryWasRunning)    m_retryTimer->Stop();
 
 
 #ifdef _WIN32
@@ -600,7 +568,6 @@ void SprintToolBoxApp::ShowContextMenu() {
     // Restart timers that were running before the popup.
     if (sprintWasRunning)   m_sprintUpdateTimer->Start(SPRINT_UPDATE_INTERVAL_MS);
     if (configWasRunning)   m_configWatchTimer->Start(10000);
-    if (retryWasRunning)    m_retryTimer->Start();     // resumes with remaining interval
 
 
     m_menuShowing = false;
@@ -896,20 +863,6 @@ void SprintToolBoxApp::OnSprintUpdateTimer(wxTimerEvent& event) {
     UpdateSprint();
 }
 
-void SprintToolBoxApp::OnRetryTimer(wxTimerEvent& event) {
-    m_retryCount++;
-    if (m_retryCount >= m_retryMaxCount) {
-        m_retryTimer->Stop();
-        m_retryCount = 0;
-        wxLogWarning("Retry window exhausted, resuming normal schedule.");
-        return;
-    }
-    wxLogMessage("Retry attempt %d/%d...", m_retryCount, m_retryMaxCount);
-    // Reload credentials on each retry so an updated ini is picked up immediately
-    if (m_jiraService) m_jiraService->ReloadCredentials();
-    UpdateSprint();
-}
-
 void SprintToolBoxApp::OnConfigWatchTimer(wxTimerEvent& event) {
     if (Config::GetInstance().HasConfigFileChanged()) {
         wxLogMessage("Config file changed on disk – reloading.");
@@ -919,22 +872,10 @@ void SprintToolBoxApp::OnConfigWatchTimer(wxTimerEvent& event) {
 }
 
 void SprintToolBoxApp::UpdateSprint() {
-    if (m_useFallbackMode) {
-        // Use public GitHub URL instead of JIRA
-        FetchPublicSprint();
-    } else if (m_jiraService) {
-        m_jiraService->ReloadCredentials(); // re-read ini on every tick
-        m_jiraService->FetchCurrentSprint();
-    }
+    FetchPublicSprint();
 }
 
 void SprintToolBoxApp::OnSprintFetched(const SprintInfo& sprint) {
-    // Clear any active error-retry loop
-    if (m_retryTimer && m_retryTimer->IsRunning()) {
-        m_retryTimer->Stop();
-        m_retryCount = 0;
-    }
-
     wxLogMessage("Sprint fetched: %s", sprint.name);
     
     wxString displayText = sprint.GetDisplayText();
@@ -942,32 +883,6 @@ void SprintToolBoxApp::OnSprintFetched(const SprintInfo& sprint) {
     
     UpdateTrayIcon(displayText, daysPassed);
 }
-
-void SprintToolBoxApp::OnSprintError(const wxString& error, const wxString& errorCode) {
-    wxLogWarning("Sprint fetch error: %s (%s)", error, errorCode);
-
-    if (errorCode == "NETWORK_ERROR") {
-#ifdef _WIN32
-        UpdateTrayIcon("NE!");
-#else
-        UpdateTrayIcon("net.err");
-#endif
-        // Start network-error retry loop (every 20 s, up to 2 min)
-        if (m_retryTimer && !m_retryTimer->IsRunning()) {
-            m_retryCount    = 0;
-            m_retryMaxCount = NETWORK_RETRY_MAX_COUNT;
-            m_retryTimer->Start(NETWORK_RETRY_INTERVAL_MS);
-        }
-    } else if (errorCode == "AUTH_ERROR" || errorCode == "NOT_CONFIGURED") {
-        UpdateTrayIcon("?");
-        wxLogWarning("Authentication failed or not configured. Switching to public fallback.");
-        m_useFallbackMode = true;
-        FetchPublicSprint();
-    } else {
-        UpdateTrayIcon(errorCode);
-    }
-}
-
 
 void SprintToolBoxApp::DownloadAndLaunch(const ReleaseInfo& info) {
     if (!info.HasAsset()) {

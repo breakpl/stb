@@ -41,55 +41,6 @@ TEST_CASE("GetDaysPassed returns -1 when startDate is not set", "[sprint]") {
     REQUIRE(s.GetDaysPassed() == -1);
 }
 
-// ── JiraService::ParseSprintJson ──────────────────────────────────────────────
-
-// Helper: build a minimal JIRA API response for a single sprint.
-static wxString SingleSprintJson(const wxString& name, int id, const wxString& state) {
-    return wxString::Format(
-        R"({"maxResults":50,"startAt":0,"isLast":true,"values":[)"
-        R"({"id":%d,"self":"https://example.atlassian.net/rest/agile/1.0/sprint/%d",)"
-        R"("state":"%s","name":"%s",)"
-        R"("startDate":"2024-02-12T00:00:00.000Z","endDate":"2024-02-25T00:00:00.000Z"}]})",
-        id, id, state, name);
-}
-
-TEST_CASE("ParseSprintJson extracts id, name and state from a single sprint", "[jira]") {
-    SprintInfo sprint = JiraService::ParseSprintJson(SingleSprintJson("Dev Sprint 333", 42, "active"));
-    REQUIRE(sprint.id   == 42);
-    REQUIRE(sprint.name == "Dev Sprint 333");
-    REQUIRE(sprint.state == "active");
-}
-
-TEST_CASE("ParseSprintJson picks the sprint with the highest number", "[jira]") {
-    wxString json =
-        R"({"values":[)"
-        R"({"id":1,"state":"active","name":"Dev Sprint 100","startDate":"2024-01-01","endDate":"2024-01-14"},)"
-        R"({"id":2,"state":"active","name":"Dev Sprint 200","startDate":"2024-02-01","endDate":"2024-02-14"})"
-        R"(]})";
-    SprintInfo sprint = JiraService::ParseSprintJson(json);
-    REQUIRE(sprint.name == "Dev Sprint 200");
-    REQUIRE(sprint.id   == 2);
-}
-
-TEST_CASE("ParseSprintJson falls back to first object when no Dev Sprint name is found", "[jira]") {
-    wxString json =
-        R"({"values":[{"id":7,"state":"active","name":"Some Other Sprint",)"
-        R"("startDate":"2024-02-01","endDate":"2024-02-14"}]})";
-    SprintInfo sprint = JiraService::ParseSprintJson(json);
-    REQUIRE(sprint.id   == 7);
-    REQUIRE(sprint.name == "Some Other Sprint");
-}
-
-TEST_CASE("ParseSprintJson returns 'Unknown Sprint' for empty values array", "[jira]") {
-    SprintInfo sprint = JiraService::ParseSprintJson(R"({"values":[]})");
-    REQUIRE(sprint.name == "Unknown Sprint");
-}
-
-TEST_CASE("ParseSprintJson returns 'Unknown Sprint' when values key is absent", "[jira]") {
-    SprintInfo sprint = JiraService::ParseSprintJson("{}");
-    REQUIRE(sprint.name == "Unknown Sprint");
-}
-
 // ── JiraService::ParsePublicSprintJson ────────────────────────────────────────
 
 TEST_CASE("ParsePublicSprintJson extracts name and start date", "[public]") {
@@ -149,7 +100,7 @@ TEST_CASE("ParsePublicSprintJson handles whitespace variations", "[public]") {
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 int main(int argc, char* argv[]) {
-    // Silence config-file-not-found warnings that JiraService's constructor emits.
+    // Silence config-file-not-found warnings during test runs.
     wxLog::EnableLogging(false);
 
     // Initialise wxWidgets (needed for wxString, wxDateTime, wxRegEx).
