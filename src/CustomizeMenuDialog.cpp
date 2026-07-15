@@ -11,13 +11,13 @@ CustomizeMenuDialog::CustomizeMenuDialog(wxWindow* parent, const std::vector<Men
     wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
 
     wxStaticText* label = new wxStaticText(this, wxID_ANY,
-        "Select an item and use the arrows to reorder:");
+        "Check to show, uncheck to hide. Use arrows to reorder:");
     mainSizer->Add(label, 0, wxALL, 12);
 
     wxBoxSizer* rowSizer = new wxBoxSizer(wxHORIZONTAL);
 
-    m_listBox = new wxListBox(this, wxID_ANY, wxDefaultPosition, wxDefaultSize,
-                              0, nullptr, wxLB_SINGLE);
+    m_listBox = new wxCheckListBox(this, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+                                   0, nullptr, wxLB_SINGLE);
     m_listBox->SetMinSize(wxSize(-1, 200));
     rowSizer->Add(m_listBox, 1, wxEXPAND | wxRIGHT, 8);
 
@@ -40,26 +40,39 @@ CustomizeMenuDialog::CustomizeMenuDialog(wxWindow* parent, const std::vector<Men
 
     SetSizer(mainSizer);
 
-    m_upBtn->Bind(wxEVT_BUTTON,       &CustomizeMenuDialog::OnMoveUp,   this);
-    m_downBtn->Bind(wxEVT_BUTTON,     &CustomizeMenuDialog::OnMoveDown, this);
-    Bind(wxEVT_CLOSE_WINDOW,          &CustomizeMenuDialog::OnClose,    this);
+    m_upBtn->Bind(wxEVT_BUTTON,        &CustomizeMenuDialog::OnMoveUp,   this);
+    m_downBtn->Bind(wxEVT_BUTTON,      &CustomizeMenuDialog::OnMoveDown, this);
+    m_listBox->Bind(wxEVT_CHECKLISTBOX, &CustomizeMenuDialog::OnToggle,   this);
+    Bind(wxEVT_CLOSE_WINDOW,           &CustomizeMenuDialog::OnClose,    this);
 
     RefreshList(0);
     Centre();
 }
 
 wxString CustomizeMenuDialog::ItemLabel(const MenuItem& item) const {
-    if (item.isSeparator)             return "--- separator ---";
+    if (item.isSeparator)              return "--- separator ---";
     if (item.url.StartsWith("submenu:")) return "> " + item.name;
     return item.name;
 }
 
 void CustomizeMenuDialog::RefreshList(int selectIndex) {
     m_listBox->Clear();
-    for (const auto& item : m_items)
-        m_listBox->Append(ItemLabel(item));
+    for (size_t i = 0; i < m_items.size(); ++i) {
+        m_listBox->Append(ItemLabel(m_items[i]));
+        m_listBox->Check(i, m_items[i].isSeparator || m_items[i].enabled);
+    }
     if (selectIndex >= 0 && selectIndex < (int)m_items.size())
         m_listBox->SetSelection(selectIndex);
+}
+
+void CustomizeMenuDialog::OnToggle(wxCommandEvent& event) {
+    int idx = event.GetInt();
+    if (idx < 0 || idx >= (int)m_items.size()) return;
+    if (m_items[idx].isSeparator) {
+        m_listBox->Check(idx, true);  // separators cannot be disabled
+        return;
+    }
+    m_items[idx].enabled = m_listBox->IsChecked(idx);
 }
 
 void CustomizeMenuDialog::OnMoveUp(wxCommandEvent&) {

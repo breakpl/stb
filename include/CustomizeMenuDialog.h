@@ -2,7 +2,7 @@
 #define CUSTOMIZEMENUDIALOG_H
 
 #include <wx/wx.h>
-#include <wx/listbox.h>
+#include <wx/checklst.h>
 #include <vector>
 #include "Config.h"
 
@@ -15,14 +15,15 @@ public:
 private:
     void OnMoveUp(wxCommandEvent& event);
     void OnMoveDown(wxCommandEvent& event);
+    void OnToggle(wxCommandEvent& event);
     void OnClose(wxCloseEvent& event);
 
     void RefreshList(int selectIndex);
     wxString ItemLabel(const MenuItem& item) const;
 
-    wxListBox* m_listBox;
-    wxButton*  m_upBtn;
-    wxButton*  m_downBtn;
+    wxCheckListBox* m_listBox;
+    wxButton*       m_upBtn;
+    wxButton*       m_downBtn;
     std::vector<MenuItem> m_items;
 };
 

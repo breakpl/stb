@@ -612,6 +612,7 @@ wxMenu* SprintToolBoxApp::BuildPopupMenu() {
         
         int dynamicId = ID_DYNAMIC_MENU_START;
         for (const auto& item : menuItems) {
+            if (!item.enabled) continue;
             if (item.isSeparator) {
                 menu->AppendSeparator();
             } else if (item.url.StartsWith("submenu:")) {

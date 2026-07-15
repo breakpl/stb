@@ -129,22 +129,29 @@ void Config::LoadMainMenu() {
             break;
         }
         
-        if (inMainMenu && !line.IsEmpty() && !line.StartsWith("#")) {
-            int pos = line.Find('=');
+        if (inMainMenu && !line.IsEmpty()) {
+            bool enabled = true;
+            wxString parseLine = line;
+            if (line.StartsWith("#") && line.Length() > 1 && line[1] != ' ') {
+                enabled = false;
+                parseLine = line.Mid(1);
+            } else if (line.StartsWith("#")) {
+                continue;
+            }
+            int pos = parseLine.Find('=');
             if (pos != wxNOT_FOUND) {
-                wxString name = line.Left(pos).Trim();
-                wxString value = line.Mid(pos + 1).Trim();
-                
+                wxString name = parseLine.Left(pos).Trim();
+                wxString value = parseLine.Mid(pos + 1).Trim();
+
                 if (name == "---" || value == "separator") {
                     m_mainMenuItems.push_back(MenuItem::Separator());
                 } else if (value.StartsWith("submenu:")) {
                     wxString submenuSection = value.Mid(8);
                     LoadSubmenu(submenuSection);
-                    // Store submenu reference
-                    MenuItem item(name, "submenu:" + submenuSection);
+                    MenuItem item(name, "submenu:" + submenuSection, enabled);
                     m_mainMenuItems.push_back(item);
                 } else {
-                    m_mainMenuItems.push_back(MenuItem(name, value));
+                    m_mainMenuItems.push_back(MenuItem(name, value, enabled));
                 }
             }
         }
@@ -191,6 +198,8 @@ void Config::SaveMenuOrder(const std::vector<MenuItem>& items) {
     for (const auto& item : items) {
         if (item.isSeparator)
             out += "---=separator\n";
+        else if (!item.enabled)
+            out += "#" + item.name + "=" + item.url + "\n";
         else
             out += item.name + "=" + item.url + "\n";
     }

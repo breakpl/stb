@@ -10,13 +10,15 @@ struct MenuItem {
     wxString name;
     wxString url;
     bool isSeparator;
-    
-    MenuItem() : isSeparator(false) {}
-    MenuItem(const wxString& n, const wxString& u) 
-        : name(n), url(u), isSeparator(false) {}
+    bool enabled;
+
+    MenuItem() : isSeparator(false), enabled(true) {}
+    MenuItem(const wxString& n, const wxString& u, bool e = true)
+        : name(n), url(u), isSeparator(false), enabled(e) {}
     static MenuItem Separator() {
         MenuItem item;
         item.isSeparator = true;
+        item.enabled = true;
         return item;
     }
 };
