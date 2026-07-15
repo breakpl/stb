@@ -88,6 +88,7 @@ private:
     int      m_retryCount;      // attempts made in current retry window
     int      m_retryMaxCount;   // max attempts before giving up
     bool     m_useFallbackMode; // true if using public GitHub URL instead of JIRA
+    bool     m_updateAvailable; // true when a newer version was silently detected
 #ifdef __WXOSX__
     void* m_themeObserver;      // NSObject for theme change notifications
     void* m_statusItem;         // NSStatusItem (owned by us, not by wxWidgets)

@@ -14,7 +14,8 @@
       "Bash(chmod +x *)",
       "Bash(cmake ..)",
       "Bash(cmake --build . --target SprintToolBox -- -j4)",
-      "Bash(cmake *)"
+      "Bash(cmake *)",
+      "Bash(xargs ls)"
     ]
   }
 }
