@@ -257,6 +257,47 @@ void Config::SaveMenuOrder(const std::vector<MenuItem>& items) {
     Reload();
 }
 
+void Config::SaveSubmenuOrder(const wxString& section, const std::vector<MenuItem>& items) {
+    if (!wxFileExists(m_configPath)) return;
+
+    wxFileInputStream fis(m_configPath);
+    if (!fis.IsOk()) return;
+    wxTextInputStream tis(fis);
+
+    wxArrayString lines;
+    while (!fis.Eof()) {
+        lines.Add(tis.ReadLine());
+    }
+
+    wxString sectionHeader = "[" + section + "]";
+    int sectionStart = -1, sectionEnd = (int)lines.GetCount();
+    for (int i = 0; i < (int)lines.GetCount(); i++) {
+        wxString t = lines[i].Trim().Trim(false);
+        if (t == sectionHeader) { sectionStart = i; continue; }
+        if (sectionStart != -1 && t.StartsWith("[")) { sectionEnd = i; break; }
+    }
+    if (sectionStart == -1) return;
+
+    wxString out;
+    for (int i = 0; i < sectionStart; i++)
+        out += lines[i] + "\n";
+    out += sectionHeader + "\n";
+    for (const auto& item : items) {
+        if (!item.enabled)
+            out += "#" + item.name + "=" + item.url + "\n";
+        else
+            out += item.name + "=" + item.url + "\n";
+    }
+    for (int i = sectionEnd; i < (int)lines.GetCount(); i++)
+        out += lines[i] + "\n";
+
+    wxFile f(m_configPath, wxFile::write);
+    if (!f.IsOpened()) return;
+    f.Write(out, wxConvUTF8);
+
+    Reload();
+}
+
 void Config::LoadSubmenu(const wxString& section) {
     if (!wxFileExists(m_configPath) || m_subMenus.count(section) > 0) {
         return;
@@ -279,12 +320,20 @@ void Config::LoadSubmenu(const wxString& section) {
             break;
         }
         
-        if (inSection && !line.IsEmpty() && !line.StartsWith("#")) {
-            int pos = line.Find('=');
+        if (inSection && !line.IsEmpty()) {
+            bool enabled = true;
+            wxString parseLine = line;
+            if (line.StartsWith("#") && line.Length() > 1 && line[1] != ' ') {
+                enabled = false;
+                parseLine = line.Mid(1);
+            } else if (line.StartsWith("#")) {
+                continue;
+            }
+            int pos = parseLine.Find('=');
             if (pos != wxNOT_FOUND) {
-                wxString name = line.Left(pos).Trim();
-                wxString url = line.Mid(pos + 1).Trim();
-                items.push_back(MenuItem(name, url));
+                wxString name = parseLine.Left(pos).Trim();
+                wxString url = parseLine.Mid(pos + 1).Trim();
+                items.push_back(MenuItem(name, url, enabled));
             }
         }
     }

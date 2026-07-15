@@ -60,6 +60,9 @@ public:
     // Persist a reordered [MainMenu] back to the INI file and reload.
     void SaveMenuOrder(const std::vector<MenuItem>& items);
 
+    // Persist a reordered/toggled submenu section back to the INI file and reload.
+    void SaveSubmenuOrder(const wxString& section, const std::vector<MenuItem>& items);
+
     // Updater state. Stored in a separate writable file so the user-edited
     // SprintToolBox.ini is not rewritten (which would lose comments/order).
     wxString GetSkippedVersion() const;
