@@ -845,16 +845,18 @@ void SprintToolBoxApp::OnToggleAutostart(wxCommandEvent& event) {
 
 void SprintToolBoxApp::OnCustomizeMenu(wxCommandEvent& event) {
     std::vector<MenuItem> items = m_config->GetMainMenuItems();
-    CallAfter([this, items]() {
+    DisplayFlags flags = m_config->GetDisplayFlags();
+    CallAfter([this, items, flags]() {
         if (!m_customizeMenuDialog) {
-            m_customizeMenuDialog = new CustomizeMenuDialog(nullptr, items);
+            m_customizeMenuDialog = new CustomizeMenuDialog(nullptr, items, flags);
         } else {
             // Re-initialise with current order each time it's opened.
             delete m_customizeMenuDialog;
-            m_customizeMenuDialog = new CustomizeMenuDialog(nullptr, items);
+            m_customizeMenuDialog = new CustomizeMenuDialog(nullptr, items, flags);
         }
         if (m_customizeMenuDialog->ShowModal() == wxID_OK) {
             m_config->SaveMenuOrder(m_customizeMenuDialog->GetReorderedItems());
+            m_config->SaveDisplayFlags(m_customizeMenuDialog->GetDisplayFlags());
         }
     });
 }

@@ -6,6 +6,13 @@
 #include <map>
 #include <vector>
 
+struct DisplayFlags {
+    bool showUnixTimestamp;
+    bool showZuluTimestamp;
+    bool showTimeConverter;
+    bool showHexDecConverter;
+};
+
 struct MenuItem {
     wxString name;
     wxString url;
@@ -43,6 +50,8 @@ public:
     bool GetShowZuluTimestamp() const { return m_showZuluTimestamp; }
     bool GetShowTimeConverter() const { return m_showTimeConverter; }
     bool GetShowHexDecConverter() const { return m_showHexDecConverter; }
+    DisplayFlags GetDisplayFlags() const;
+    void SaveDisplayFlags(const DisplayFlags& flags);
     
     // Menu items
     std::vector<MenuItem> GetMainMenuItems() const { return m_mainMenuItems; }

@@ -8,9 +8,11 @@
 
 class CustomizeMenuDialog : public wxDialog {
 public:
-    CustomizeMenuDialog(wxWindow* parent, const std::vector<MenuItem>& items);
+    CustomizeMenuDialog(wxWindow* parent, const std::vector<MenuItem>& items,
+                        const DisplayFlags& displayFlags);
 
     std::vector<MenuItem> GetReorderedItems() const { return m_items; }
+    DisplayFlags GetDisplayFlags() const;
 
 private:
     void OnMoveUp(wxCommandEvent& event);
@@ -25,6 +27,11 @@ private:
     wxButton*       m_upBtn;
     wxButton*       m_downBtn;
     std::vector<MenuItem> m_items;
+
+    wxCheckBox* m_showUnixTimestamp;
+    wxCheckBox* m_showZuluTimestamp;
+    wxCheckBox* m_showTimeConverter;
+    wxCheckBox* m_showHexDecConverter;
 };
 
 #endif // CUSTOMIZEMENUDIALOG_H

@@ -158,6 +158,50 @@ void Config::LoadMainMenu() {
     }
 }
 
+DisplayFlags Config::GetDisplayFlags() const {
+    return { m_showUnixTimestamp, m_showZuluTimestamp, m_showTimeConverter, m_showHexDecConverter };
+}
+
+void Config::SaveDisplayFlags(const DisplayFlags& flags) {
+    if (!wxFileExists(m_configPath)) return;
+
+    wxFileInputStream fis(m_configPath);
+    if (!fis.IsOk()) return;
+    wxTextInputStream tis(fis);
+
+    wxArrayString lines;
+    while (!fis.Eof()) {
+        lines.Add(tis.ReadLine());
+    }
+
+    int sectionStart = -1, sectionEnd = (int)lines.GetCount();
+    for (int i = 0; i < (int)lines.GetCount(); i++) {
+        wxString t = lines[i].Trim().Trim(false);
+        if (t == "[Display]") { sectionStart = i; continue; }
+        if (sectionStart != -1 && t.StartsWith("[")) { sectionEnd = i; break; }
+    }
+    if (sectionStart == -1) return;
+
+    auto boolStr = [](bool v) -> wxString { return v ? "true" : "false"; };
+
+    wxString out;
+    for (int i = 0; i < sectionStart; i++)
+        out += lines[i] + "\n";
+    out += "[Display]\n";
+    out += "ShowUnixTimestamp="   + boolStr(flags.showUnixTimestamp)   + "\n";
+    out += "ShowZuluTimestamp="   + boolStr(flags.showZuluTimestamp)   + "\n";
+    out += "ShowTimeConverter="   + boolStr(flags.showTimeConverter)   + "\n";
+    out += "ShowHexDecConverter=" + boolStr(flags.showHexDecConverter) + "\n";
+    for (int i = sectionEnd; i < (int)lines.GetCount(); i++)
+        out += lines[i] + "\n";
+
+    wxFile f(m_configPath, wxFile::write);
+    if (!f.IsOpened()) return;
+    f.Write(out, wxConvUTF8);
+
+    Reload();
+}
+
 wxString Config::GetSkippedVersion() const {
     wxFileConfig conf("SprintToolBox", "SprintToolBox",
                       wxEmptyString, wxEmptyString, wxCONFIG_USE_LOCAL_FILE);

@@ -2,17 +2,33 @@
 #include <wx/sizer.h>
 #include <wx/stattext.h>
 
-CustomizeMenuDialog::CustomizeMenuDialog(wxWindow* parent, const std::vector<MenuItem>& items)
+CustomizeMenuDialog::CustomizeMenuDialog(wxWindow* parent, const std::vector<MenuItem>& items,
+                                         const DisplayFlags& displayFlags)
     : wxDialog(parent, wxID_ANY, "Customize Menu",
-               wxDefaultPosition, wxSize(380, 440),
+               wxDefaultPosition, wxDefaultSize,
                wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER | wxSTAY_ON_TOP)
     , m_items(items)
 {
     wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
 
+    wxStaticBoxSizer* displaySizer = new wxStaticBoxSizer(wxVERTICAL, this, "Built-in items");
+    m_showUnixTimestamp   = new wxCheckBox(this, wxID_ANY, "Unix Timestamp");
+    m_showZuluTimestamp   = new wxCheckBox(this, wxID_ANY, "Zulu Timestamp");
+    m_showTimeConverter   = new wxCheckBox(this, wxID_ANY, "Time Converter");
+    m_showHexDecConverter = new wxCheckBox(this, wxID_ANY, "Hex/Dec Converter");
+    m_showUnixTimestamp->SetValue(displayFlags.showUnixTimestamp);
+    m_showZuluTimestamp->SetValue(displayFlags.showZuluTimestamp);
+    m_showTimeConverter->SetValue(displayFlags.showTimeConverter);
+    m_showHexDecConverter->SetValue(displayFlags.showHexDecConverter);
+    displaySizer->Add(m_showUnixTimestamp,   0, wxALL, 4);
+    displaySizer->Add(m_showZuluTimestamp,   0, wxLEFT | wxRIGHT | wxBOTTOM, 4);
+    displaySizer->Add(m_showTimeConverter,   0, wxLEFT | wxRIGHT | wxBOTTOM, 4);
+    displaySizer->Add(m_showHexDecConverter, 0, wxLEFT | wxRIGHT | wxBOTTOM, 4);
+    mainSizer->Add(displaySizer, 0, wxEXPAND | wxALL, 12);
+
     wxStaticText* label = new wxStaticText(this, wxID_ANY,
         "Check to show, uncheck to hide. Use arrows to reorder:");
-    mainSizer->Add(label, 0, wxALL, 12);
+    mainSizer->Add(label, 0, wxLEFT | wxRIGHT | wxBOTTOM, 12);
 
     wxBoxSizer* rowSizer = new wxBoxSizer(wxHORIZONTAL);
 
@@ -39,6 +55,8 @@ CustomizeMenuDialog::CustomizeMenuDialog(wxWindow* parent, const std::vector<Men
     mainSizer->Add(stdBtns, 0, wxALL | wxEXPAND, 12);
 
     SetSizer(mainSizer);
+    mainSizer->Fit(this);
+    SetMinSize(GetSize());
 
     m_upBtn->Bind(wxEVT_BUTTON,        &CustomizeMenuDialog::OnMoveUp,   this);
     m_downBtn->Bind(wxEVT_BUTTON,      &CustomizeMenuDialog::OnMoveDown, this);
@@ -47,6 +65,15 @@ CustomizeMenuDialog::CustomizeMenuDialog(wxWindow* parent, const std::vector<Men
 
     RefreshList(0);
     Centre();
+}
+
+DisplayFlags CustomizeMenuDialog::GetDisplayFlags() const {
+    return {
+        m_showUnixTimestamp->GetValue(),
+        m_showZuluTimestamp->GetValue(),
+        m_showTimeConverter->GetValue(),
+        m_showHexDecConverter->GetValue()
+    };
 }
 
 wxString CustomizeMenuDialog::ItemLabel(const MenuItem& item) const {
