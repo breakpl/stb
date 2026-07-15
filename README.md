@@ -6,7 +6,7 @@ Download your ready binaries from Releases section (upper right).
 
 ## Configuration — SprintToolBox.ini
 
-On first launch the application looks for `SprintToolBox.ini` in the same directory as the executable. Copy the bundled `SprintToolBox.ini` template and fill in your own values before starting the app.
+On first launch the application copies the bundled `SprintToolBox.ini` template to your home directory (`~/SprintToolBox.ini`) and reads it from there on every subsequent start. Open that file and fill in your own values — the app picks up changes automatically.
 
 ### [JIRA] section
 
