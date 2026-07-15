@@ -4,33 +4,61 @@ This project is a system tray application built using wxWidgets, designed as a D
 
 Download your ready binaries from Releases section (upper right).
 
-or
+## Configuration — SprintToolBox.ini
 
-1. **Install wxWidgets**: Make sure you have wxWidgets installed on your system.
-   
-   On macOS with Homebrew:
-   ```bash
-   brew install wxwidgets
-   ```
-   
-   On Ubuntu/Debian:
-   ```bash
-   sudo apt-get install libwxgtk3.0-gtk3-dev
-   ```
+On first launch the application looks for `SprintToolBox.ini` in the same directory as the executable. Copy the bundled `SprintToolBox.ini` template and fill in your own values before starting the app.
 
-2. **Clone the repository**: 
-   ```bash
-   git clone <repository-url>
-   cd wxwidgets-learning-project
-   ```
+### [JIRA] section
 
-3. **Build the project**:
-   ```bash
-   mkdir build
-   cd build
-   cmake ..
-   make
-   ```
+Connects the app to your Jira instance so it can display the current sprint number in the dock icon.
+
+| Key | Description |
+|-----|-------------|
+| `Email` | Your Atlassian account e-mail |
+| `APIToken` | Personal API token — generate one at id.atlassian.com → Security → API tokens |
+| `BaseURL` | Root URL of your Jira site, e.g. `https://your-org.atlassian.net` |
+| `BoardID` | Numeric ID of the Scrum board whose active sprint is shown (find it in the board URL) |
+
+### [Display] section
+
+Toggles individual menu items on or off. Any of the standard boolean strings are accepted: `1`/`true`/`yes` to show, `0`/`false`/`no` to hide.
+
+| Key | Controls |
+|-----|----------|
+| `ShowUnixTimestamp` | Unix epoch entry (click to copy) |
+| `ShowZuluTimestamp` | Zulu (UTC) timestamp entry |
+| `ShowTimeConverter` | Time-converter dialog |
+| `ShowHexDecConverter` | Hex/Dec converter dialog |
+
+### [MainMenu] section
+
+Defines the top-level menu items that appear when you click the tray icon. Up to 20 entries are supported.
+
+Each line follows one of three formats:
+
+```ini
+# Plain URL link
+Label=https://example.com
+
+# Submenu reference — items come from a separate [SectionName] section
+Label=submenu:SectionName
+
+# Visual separator
+---=separator
+```
+
+### Submenu sections
+
+Any section whose name is referenced with `submenu:SectionName` from `[MainMenu]` becomes a submenu. Each section supports up to 15 `Label=URL` entries. The bundled file ships with four example submenus:
+
+| Section | Purpose |
+|---------|---------|
+| `[SyntheticControl]` | Links to Synthetic Control environments (Dev / Sprint / Prod) |
+| `[CloudControl]` | Links to Cloud Control environments |
+| `[MissionControl]` | Links to Mission Control environments |
+| `[Monitoring]` | Links to tenant monitoring dashboards |
+
+Add your own submenus by creating a new `[SectionName]` section and adding a `Label=submenu:SectionName` entry in `[MainMenu]`.
 
 ## Usage
 
