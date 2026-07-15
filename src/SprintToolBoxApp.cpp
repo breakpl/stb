@@ -311,7 +311,7 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
         if (daysPassed >= 0) {
             tooltip += wxString::Format(" (Day %d)", daysPassed);
         }
-        if (m_updateAvailable) tooltip += " · Update available";
+        if (m_updateAvailable) tooltip += " | Update available";
         
         // First call: create our own NSStatusItem directly.
         // The old approach used SetIcon() + a private KVC valueForKey:@"statusItems"
@@ -369,7 +369,7 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
     {
         wxString tooltip = "Sprint " + text;
         if (daysPassed >= 0) tooltip += wxString::Format(" (Day %d)", daysPassed);
-        if (m_updateAvailable) tooltip += " · Update available";
+        if (m_updateAvailable) tooltip += " | Update available";
 
         // System small-icon metric (respects DPI on per-monitor builds).
         int iconSize = ::GetSystemMetrics(SM_CXSMICON);
@@ -476,7 +476,7 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
     {
         wxString tooltip = "Sprint " + text;
         if (daysPassed >= 0) tooltip += wxString::Format(" (Day %d)", daysPassed);
-        if (m_updateAvailable) tooltip += " · Update available";
+        if (m_updateAvailable) tooltip += " | Update available";
 
         const int iconSize = 22;
         wxBitmap bmp(iconSize, iconSize, 32);
