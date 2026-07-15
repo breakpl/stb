@@ -39,3 +39,23 @@ if(APPLE)
     target_link_libraries(test_sprint PRIVATE "-framework Cocoa")
 endif()
 add_test(NAME test_sprint COMMAND test_sprint)
+
+# ── test_update ────────────────────────────────────────────────────────────────
+# Tests UpdateService static/pure methods: CompareVersions, IsNewerThanCurrent,
+# ParseLatestReleaseJson, PickAssetForThisPlatform.
+# MakeHttpRequest, CheckForUpdates, and DownloadAsset require live network and
+# are not covered here.
+add_executable(test_update
+    test_update.cpp
+    ${CMAKE_SOURCE_DIR}/src/UpdateService.cpp
+)
+target_include_directories(test_update PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(test_update PRIVATE
+    Catch2::Catch2
+    ${wxWidgets_LIBRARIES}
+    ${CURL_LIBRARIES}
+)
+if(APPLE)
+    target_link_libraries(test_update PRIVATE "-framework Cocoa")
+endif()
+add_test(NAME test_update COMMAND test_update)
