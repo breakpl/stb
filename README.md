@@ -6,7 +6,9 @@ Download your ready binaries from Releases section (upper right).
 
 ## Configuration — SprintToolBox.ini
 
-On first launch the application copies the bundled `SprintToolBox.ini` template to your home directory (`~/SprintToolBox.ini`) and reads it from there on every subsequent start. Open that file and fill in your own values — the app picks up changes automatically.
+On first launch the application copies the bundled `SprintToolBox.ini` template to your home directory (`~/SprintToolBox.ini`) and reads it from there on every subsequent start. Open that file and fill in your own values.
+
+The app checks `~/SprintToolBox.ini` for changes every **10 seconds** and reloads automatically — no restart needed. This applies to all sections: Jira credentials, display toggles, and menu layout.
 
 ### [JIRA] section
 
