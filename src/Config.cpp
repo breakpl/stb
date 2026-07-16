@@ -276,20 +276,34 @@ void Config::SaveSubmenuOrder(const wxString& section, const std::vector<MenuIte
         if (t == sectionHeader) { sectionStart = i; continue; }
         if (sectionStart != -1 && t.StartsWith("[")) { sectionEnd = i; break; }
     }
-    if (sectionStart == -1) return;
-
     wxString out;
-    for (int i = 0; i < sectionStart; i++)
-        out += lines[i] + "\n";
-    out += sectionHeader + "\n";
-    for (const auto& item : items) {
-        if (!item.enabled)
-            out += "#" + item.name + "=" + item.url + "\n";
-        else
-            out += item.name + "=" + item.url + "\n";
+    if (sectionStart == -1) {
+        // New section: append after the last non-empty line
+        int lastNonEmpty = (int)lines.GetCount() - 1;
+        while (lastNonEmpty >= 0 && lines[lastNonEmpty].Trim().IsEmpty())
+            lastNonEmpty--;
+        for (int i = 0; i <= lastNonEmpty; i++)
+            out += lines[i] + "\n";
+        out += "\n" + sectionHeader + "\n";
+        for (const auto& item : items) {
+            if (!item.enabled)
+                out += "#" + item.name + "=" + item.url + "\n";
+            else
+                out += item.name + "=" + item.url + "\n";
+        }
+    } else {
+        for (int i = 0; i < sectionStart; i++)
+            out += lines[i] + "\n";
+        out += sectionHeader + "\n";
+        for (const auto& item : items) {
+            if (!item.enabled)
+                out += "#" + item.name + "=" + item.url + "\n";
+            else
+                out += item.name + "=" + item.url + "\n";
+        }
+        for (int i = sectionEnd; i < (int)lines.GetCount(); i++)
+            out += lines[i] + "\n";
     }
-    for (int i = sectionEnd; i < (int)lines.GetCount(); i++)
-        out += lines[i] + "\n";
 
     wxFile f(m_configPath, wxFile::write);
     if (!f.IsOpened()) return;

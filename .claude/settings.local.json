@@ -15,7 +15,22 @@
       "Bash(cmake ..)",
       "Bash(cmake --build . --target SprintToolBox -- -j4)",
       "Bash(cmake *)",
-      "Bash(xargs ls)"
+      "Bash(xargs ls)",
+      "Bash(gh release *)",
+      "Bash(xargs ls -1)",
+      "Bash(xargs cat)",
+      "Bash(./tests/test_update)",
+      "Bash(xargs ls -la)",
+      "Bash(make SprintToolBox)",
+      "Bash(make test_sprint)",
+      "Bash(./tests/test_sprint)",
+      "Bash(./package_mac.sh)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(codesign --force --sign \"-\" --timestamp=none --entitlements /Users/dariusz.kalita/DT/sources/stb/entitlements.plist /Users/dariusz.kalita/sources/stb/build-arm64/SprintToolBox.app/Contents/MacOS/SprintToolBox)",
+      "Bash(codesign -dv /Users/dariusz.kalita/sources/stb/build-arm64/SprintToolBox.app/Contents/MacOS/SprintToolBox)",
+      "Skill(run)",
+      "Bash(open *)",
+      "Bash(pkill -x SprintToolBox)"
     ]
   }
 }
