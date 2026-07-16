@@ -265,6 +265,11 @@ SprintToolBoxApp::~SprintToolBoxApp() {
         m_timeConverterDialog->Destroy();
         m_timeConverterDialog = nullptr;
     }
+
+    if (m_customizeMenuDialog) {
+        m_customizeMenuDialog->Destroy();
+        m_customizeMenuDialog = nullptr;
+    }
 }
 
 void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
@@ -377,7 +382,16 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
         HDC screenDC = ::GetDC(nullptr);
         HBITMAP hBmp = ::CreateDIBSection(screenDC, &bmi, DIB_RGB_COLORS,
                                           &bits, nullptr, 0);
+        if (!hBmp || !bits) {
+            ::ReleaseDC(nullptr, screenDC);
+            return;
+        }
         HDC memDC = ::CreateCompatibleDC(screenDC);
+        if (!memDC) {
+            ::DeleteObject(hBmp);
+            ::ReleaseDC(nullptr, screenDC);
+            return;
+        }
         HBITMAP oldBmp = (HBITMAP)::SelectObject(memDC, hBmp);
 
         // Clear to black (all channels zero → fully transparent)
@@ -849,7 +863,10 @@ void SprintToolBoxApp::OnCustomizeMenu(wxCommandEvent& event) {
     DisplayFlags flags = m_config->GetDisplayFlags();
     CallAfter([this, items, subMenus, flags]() {
         // Re-initialise with current state each time it's opened.
-        delete m_customizeMenuDialog;
+        if (m_customizeMenuDialog) {
+            m_customizeMenuDialog->Destroy();
+            m_customizeMenuDialog = nullptr;
+        }
         m_customizeMenuDialog = new CustomizeMenuDialog(nullptr, items, subMenus, flags);
         if (m_customizeMenuDialog->ShowModal() == wxID_OK) {
             m_config->SaveMenuOrder(m_customizeMenuDialog->GetReorderedItems());
