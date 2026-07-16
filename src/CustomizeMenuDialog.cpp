@@ -1,6 +1,8 @@
 #include "CustomizeMenuDialog.h"
+#include "AddItemDialog.h"
 #include <wx/sizer.h>
 #include <wx/stattext.h>
+#include <wx/msgdlg.h>
 
 CustomizeMenuDialog::CustomizeMenuDialog(wxWindow* parent, const std::vector<MenuItem>& items,
                                          const std::map<wxString, std::vector<MenuItem>>& subMenus,
@@ -32,13 +34,11 @@ CustomizeMenuDialog::CustomizeMenuDialog(wxWindow* parent, const std::vector<Men
         "Check to show, uncheck to hide. Use arrows to reorder:");
     mainSizer->Add(hint, 0, wxLEFT | wxRIGHT | wxBOTTOM, 12);
 
-    // Two-column panel: main list | submenu list
     wxBoxSizer* panelSizer = new wxBoxSizer(wxHORIZONTAL);
 
-    // Left column — main menu
+    // ── Left column: main menu ────────────────────────────────────────────────
     wxBoxSizer* leftOuter = new wxBoxSizer(wxVERTICAL);
-    wxStaticText* mainLabel = new wxStaticText(this, wxID_ANY, "Main menu:");
-    leftOuter->Add(mainLabel, 0, wxBOTTOM, 4);
+    leftOuter->Add(new wxStaticText(this, wxID_ANY, "Main menu:"), 0, wxBOTTOM, 4);
 
     wxBoxSizer* leftRow = new wxBoxSizer(wxHORIZONTAL);
     m_listBox = new wxCheckListBox(this, wxID_ANY, wxDefaultPosition, wxDefaultSize,
@@ -54,10 +54,18 @@ CustomizeMenuDialog::CustomizeMenuDialog(wxWindow* parent, const std::vector<Men
     mainBtnSizer->Add(m_upBtn,   0, wxBOTTOM, 6);
     mainBtnSizer->Add(m_downBtn, 0);
     leftRow->Add(mainBtnSizer, 0, wxALIGN_CENTER_VERTICAL);
-    leftOuter->Add(leftRow, 1, wxEXPAND);
+    leftOuter->Add(leftRow, 1, wxEXPAND | wxBOTTOM, 6);
+
+    wxBoxSizer* mainAddRemoveSizer = new wxBoxSizer(wxHORIZONTAL);
+    m_addMainBtn    = new wxButton(this, wxID_ANY, "+", wxDefaultPosition, wxSize(32, 28));
+    m_removeMainBtn = new wxButton(this, wxID_ANY, wxString::FromUTF8("\xe2\x88\x92"),
+                                   wxDefaultPosition, wxSize(32, 28));
+    mainAddRemoveSizer->Add(m_addMainBtn,    0, wxRIGHT, 4);
+    mainAddRemoveSizer->Add(m_removeMainBtn, 0);
+    leftOuter->Add(mainAddRemoveSizer, 0);
     panelSizer->Add(leftOuter, 1, wxEXPAND | wxRIGHT, 16);
 
-    // Right column — submenu items
+    // ── Right column: submenu items ───────────────────────────────────────────
     wxBoxSizer* rightOuter = new wxBoxSizer(wxVERTICAL);
     m_subLabel = new wxStaticText(this, wxID_ANY, "Select a submenu item:");
     rightOuter->Add(m_subLabel, 0, wxBOTTOM, 4);
@@ -79,7 +87,17 @@ CustomizeMenuDialog::CustomizeMenuDialog(wxWindow* parent, const std::vector<Men
     subBtnSizer->Add(m_subUpBtn,   0, wxBOTTOM, 6);
     subBtnSizer->Add(m_subDownBtn, 0);
     rightRow->Add(subBtnSizer, 0, wxALIGN_CENTER_VERTICAL);
-    rightOuter->Add(rightRow, 1, wxEXPAND);
+    rightOuter->Add(rightRow, 1, wxEXPAND | wxBOTTOM, 6);
+
+    wxBoxSizer* subAddRemoveSizer = new wxBoxSizer(wxHORIZONTAL);
+    m_addSubBtn    = new wxButton(this, wxID_ANY, "+", wxDefaultPosition, wxSize(32, 28));
+    m_removeSubBtn = new wxButton(this, wxID_ANY, wxString::FromUTF8("\xe2\x88\x92"),
+                                  wxDefaultPosition, wxSize(32, 28));
+    m_addSubBtn->Enable(false);
+    m_removeSubBtn->Enable(false);
+    subAddRemoveSizer->Add(m_addSubBtn,    0, wxRIGHT, 4);
+    subAddRemoveSizer->Add(m_removeSubBtn, 0);
+    rightOuter->Add(subAddRemoveSizer, 0);
     panelSizer->Add(rightOuter, 1, wxEXPAND);
 
     mainSizer->Add(panelSizer, 1, wxEXPAND | wxLEFT | wxRIGHT, 12);
@@ -94,14 +112,20 @@ CustomizeMenuDialog::CustomizeMenuDialog(wxWindow* parent, const std::vector<Men
     mainSizer->Fit(this);
     SetMinSize(GetSize());
 
-    m_upBtn->Bind(wxEVT_BUTTON,          &CustomizeMenuDialog::OnMoveUp,    this);
-    m_downBtn->Bind(wxEVT_BUTTON,        &CustomizeMenuDialog::OnMoveDown,  this);
-    m_listBox->Bind(wxEVT_CHECKLISTBOX,  &CustomizeMenuDialog::OnToggle,    this);
-    m_listBox->Bind(wxEVT_LISTBOX,       &CustomizeMenuDialog::OnMainSelect, this);
-    m_subUpBtn->Bind(wxEVT_BUTTON,       &CustomizeMenuDialog::OnSubMoveUp,   this);
-    m_subDownBtn->Bind(wxEVT_BUTTON,     &CustomizeMenuDialog::OnSubMoveDown, this);
-    m_subListBox->Bind(wxEVT_CHECKLISTBOX, &CustomizeMenuDialog::OnSubToggle, this);
-    Bind(wxEVT_CLOSE_WINDOW,             &CustomizeMenuDialog::OnClose,     this);
+    m_upBtn->Bind(wxEVT_BUTTON,            &CustomizeMenuDialog::OnMoveUp,        this);
+    m_downBtn->Bind(wxEVT_BUTTON,          &CustomizeMenuDialog::OnMoveDown,      this);
+    m_addMainBtn->Bind(wxEVT_BUTTON,       &CustomizeMenuDialog::OnAddMainItem,   this);
+    m_removeMainBtn->Bind(wxEVT_BUTTON,    &CustomizeMenuDialog::OnRemoveMainItem, this);
+    m_listBox->Bind(wxEVT_CHECKLISTBOX,    &CustomizeMenuDialog::OnToggle,        this);
+    m_listBox->Bind(wxEVT_LISTBOX,         &CustomizeMenuDialog::OnMainSelect,    this);
+
+    m_subUpBtn->Bind(wxEVT_BUTTON,         &CustomizeMenuDialog::OnSubMoveUp,     this);
+    m_subDownBtn->Bind(wxEVT_BUTTON,       &CustomizeMenuDialog::OnSubMoveDown,   this);
+    m_addSubBtn->Bind(wxEVT_BUTTON,        &CustomizeMenuDialog::OnAddSubItem,    this);
+    m_removeSubBtn->Bind(wxEVT_BUTTON,     &CustomizeMenuDialog::OnRemoveSubItem, this);
+    m_subListBox->Bind(wxEVT_CHECKLISTBOX, &CustomizeMenuDialog::OnSubToggle,     this);
+
+    Bind(wxEVT_CLOSE_WINDOW, &CustomizeMenuDialog::OnClose, this);
 
     RefreshList(0);
     UpdateSubPanelForSelection(0);
@@ -118,7 +142,7 @@ DisplayFlags CustomizeMenuDialog::GetDisplayFlags() const {
 }
 
 wxString CustomizeMenuDialog::ItemLabel(const MenuItem& item) const {
-    if (item.isSeparator)              return "--- separator ---";
+    if (item.isSeparator)               return "--- separator ---";
     if (item.url.StartsWith("submenu:")) return "> " + item.name;
     return item.name;
 }
@@ -139,8 +163,8 @@ void CustomizeMenuDialog::RefreshSubList(int selectIndex) {
         return;
     const auto& subItems = m_subMenus.at(m_currentSubSection);
     for (size_t i = 0; i < subItems.size(); ++i) {
-        m_subListBox->Append(subItems[i].name);
-        m_subListBox->Check(i, subItems[i].enabled);
+        m_subListBox->Append(ItemLabel(subItems[i]));
+        m_subListBox->Check(i, subItems[i].isSeparator || subItems[i].enabled);
     }
     if (selectIndex >= 0 && selectIndex < (int)subItems.size())
         m_subListBox->SetSelection(selectIndex);
@@ -156,6 +180,8 @@ void CustomizeMenuDialog::UpdateSubPanelForSelection(int mainIdx) {
         m_subListBox->Enable(false);
         m_subUpBtn->Enable(false);
         m_subDownBtn->Enable(false);
+        m_addSubBtn->Enable(false);
+        m_removeSubBtn->Enable(false);
         return;
     }
 
@@ -164,16 +190,17 @@ void CustomizeMenuDialog::UpdateSubPanelForSelection(int mainIdx) {
     m_subListBox->Enable(true);
     m_subUpBtn->Enable(true);
     m_subDownBtn->Enable(true);
+    m_addSubBtn->Enable(true);
+    m_removeSubBtn->Enable(true);
     RefreshSubList(0);
 }
+
+// ── Main list handlers ────────────────────────────────────────────────────────
 
 void CustomizeMenuDialog::OnToggle(wxCommandEvent& event) {
     int idx = event.GetInt();
     if (idx < 0 || idx >= (int)m_items.size()) return;
-    if (m_items[idx].isSeparator) {
-        m_listBox->Check(idx, true);
-        return;
-    }
+    if (m_items[idx].isSeparator) { m_listBox->Check(idx, true); return; }
     m_items[idx].enabled = m_listBox->IsChecked(idx);
 }
 
@@ -196,6 +223,41 @@ void CustomizeMenuDialog::OnMoveDown(wxCommandEvent&) {
     RefreshList(sel + 1);
     UpdateSubPanelForSelection(sel + 1);
 }
+
+void CustomizeMenuDialog::OnAddMainItem(wxCommandEvent&) {
+    AddItemDialog dlg(this, AddItemDialog::Mode::Main);
+    if (dlg.ShowModal() != wxID_OK) return;
+
+    MenuItem item = dlg.GetItem();
+    if (item.url.StartsWith("submenu:")) {
+        wxString section = item.url.Mid(8);
+        if (m_subMenus.count(section) == 0)
+            m_subMenus[section] = {};
+    }
+
+    int sel = m_listBox->GetSelection();
+    int insertAt = (sel >= 0) ? sel + 1 : (int)m_items.size();
+    m_items.insert(m_items.begin() + insertAt, item);
+    RefreshList(insertAt);
+    UpdateSubPanelForSelection(insertAt);
+}
+
+void CustomizeMenuDialog::OnRemoveMainItem(wxCommandEvent&) {
+    int sel = m_listBox->GetSelection();
+    if (sel < 0 || sel >= (int)m_items.size()) return;
+
+    wxString label = ItemLabel(m_items[sel]);
+    if (wxMessageBox(wxString::Format("Remove \"%s\"?", label),
+                     "Confirm removal", wxYES_NO | wxICON_QUESTION, this) != wxYES)
+        return;
+
+    m_items.erase(m_items.begin() + sel);
+    int newSel = (sel < (int)m_items.size()) ? sel : sel - 1;
+    RefreshList(newSel);
+    UpdateSubPanelForSelection(newSel);
+}
+
+// ── Submenu list handlers ─────────────────────────────────────────────────────
 
 void CustomizeMenuDialog::OnSubToggle(wxCommandEvent& event) {
     if (m_currentSubSection.IsEmpty()) return;
@@ -221,6 +283,35 @@ void CustomizeMenuDialog::OnSubMoveDown(wxCommandEvent&) {
     if (sel < 0 || sel >= (int)subItems.size() - 1) return;
     std::swap(subItems[sel], subItems[sel + 1]);
     RefreshSubList(sel + 1);
+}
+
+void CustomizeMenuDialog::OnAddSubItem(wxCommandEvent&) {
+    if (m_currentSubSection.IsEmpty()) return;
+
+    AddItemDialog dlg(this, AddItemDialog::Mode::Sub);
+    if (dlg.ShowModal() != wxID_OK) return;
+
+    auto& subItems = m_subMenus[m_currentSubSection];
+    MenuItem item = dlg.GetItem();
+    int sel = m_subListBox->GetSelection();
+    int insertAt = (sel >= 0) ? sel + 1 : (int)subItems.size();
+    subItems.insert(subItems.begin() + insertAt, item);
+    RefreshSubList(insertAt);
+}
+
+void CustomizeMenuDialog::OnRemoveSubItem(wxCommandEvent&) {
+    if (m_currentSubSection.IsEmpty()) return;
+    int sel = m_subListBox->GetSelection();
+    auto& subItems = m_subMenus[m_currentSubSection];
+    if (sel < 0 || sel >= (int)subItems.size()) return;
+
+    if (wxMessageBox(wxString::Format("Remove \"%s\"?", ItemLabel(subItems[sel])),
+                     "Confirm removal", wxYES_NO | wxICON_QUESTION, this) != wxYES)
+        return;
+
+    subItems.erase(subItems.begin() + sel);
+    int newSel = (sel < (int)subItems.size()) ? sel : sel - 1;
+    RefreshSubList(newSel);
 }
 
 void CustomizeMenuDialog::OnClose(wxCloseEvent& event) {

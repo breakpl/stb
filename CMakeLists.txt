@@ -21,6 +21,7 @@ set(SOURCES
     src/ConverterDialog.cpp
     src/TimeConverterDialog.cpp
     src/CustomizeMenuDialog.cpp
+    src/AddItemDialog.cpp
     src/TimestampUtils.cpp
     src/JiraService.cpp
     src/UpdateService.cpp

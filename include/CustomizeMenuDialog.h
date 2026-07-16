@@ -22,9 +22,15 @@ private:
     void OnMoveDown(wxCommandEvent& event);
     void OnToggle(wxCommandEvent& event);
     void OnMainSelect(wxCommandEvent& event);
+    void OnAddMainItem(wxCommandEvent& event);
+    void OnRemoveMainItem(wxCommandEvent& event);
+
     void OnSubMoveUp(wxCommandEvent& event);
     void OnSubMoveDown(wxCommandEvent& event);
     void OnSubToggle(wxCommandEvent& event);
+    void OnAddSubItem(wxCommandEvent& event);
+    void OnRemoveSubItem(wxCommandEvent& event);
+
     void OnClose(wxCloseEvent& event);
 
     void RefreshList(int selectIndex);
@@ -35,11 +41,15 @@ private:
     wxCheckListBox* m_listBox;
     wxButton*       m_upBtn;
     wxButton*       m_downBtn;
+    wxButton*       m_addMainBtn;
+    wxButton*       m_removeMainBtn;
 
     wxStaticText*   m_subLabel;
     wxCheckListBox* m_subListBox;
     wxButton*       m_subUpBtn;
     wxButton*       m_subDownBtn;
+    wxButton*       m_addSubBtn;
+    wxButton*       m_removeSubBtn;
 
     std::vector<MenuItem> m_items;
     std::map<wxString, std::vector<MenuItem>> m_subMenus;
