@@ -134,7 +134,7 @@ SprintToolBoxApp::SprintToolBoxApp()
     , m_currentIconText("...")
     , m_currentDaysPassed(-1)
     , m_menuShowing(false)
-    , m_updateAvailable(false)
+    , m_pendingUpdateVersion()
 #ifdef __WXOSX__
     , m_themeObserver(nullptr)
     , m_statusItem(nullptr)
@@ -286,7 +286,7 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
         if (daysPassed >= 0) {
             tooltip += wxString::Format(" (Day %d)", daysPassed);
         }
-        if (m_updateAvailable) tooltip += " | Update available";
+        if (!m_pendingUpdateVersion.IsEmpty()) tooltip += " | v" + m_pendingUpdateVersion + " available";
         
         // First call: create our own NSStatusItem directly.
         // The old approach used SetIcon() + a private KVC valueForKey:@"statusItems"
@@ -344,7 +344,7 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
     {
         wxString tooltip = "Sprint " + text;
         if (daysPassed >= 0) tooltip += wxString::Format(" (Day %d)", daysPassed);
-        if (m_updateAvailable) tooltip += " | Update available";
+        if (!m_pendingUpdateVersion.IsEmpty()) tooltip += " | v" + m_pendingUpdateVersion + " available";
 
         // System small-icon metric (respects DPI on per-monitor builds).
         int iconSize = ::GetSystemMetrics(SM_CXSMICON);
@@ -460,7 +460,7 @@ void SprintToolBoxApp::UpdateTrayIcon(const wxString& text, int daysPassed) {
     {
         wxString tooltip = "Sprint " + text;
         if (daysPassed >= 0) tooltip += wxString::Format(" (Day %d)", daysPassed);
-        if (m_updateAvailable) tooltip += " | Update available";
+        if (!m_pendingUpdateVersion.IsEmpty()) tooltip += " | v" + m_pendingUpdateVersion + " available";
 
         const int iconSize = 22;
         wxBitmap bmp(iconSize, iconSize, 32);
@@ -1003,8 +1003,8 @@ void SprintToolBoxApp::CheckForUpdates(bool silent) {
 void SprintToolBoxApp::OnUpdateAvailable(const ReleaseInfo& info, bool silent) {
     const bool isNewer = UpdateService::IsNewerThanCurrent(info.tag);
     if (!isNewer) {
-        if (m_updateAvailable) {
-            m_updateAvailable = false;
+        if (!m_pendingUpdateVersion.IsEmpty()) {
+            m_pendingUpdateVersion.Clear();
             UpdateTrayIcon(m_currentIconText, m_currentDaysPassed);
         }
         if (!silent) {
@@ -1021,8 +1021,8 @@ void SprintToolBoxApp::OnUpdateAvailable(const ReleaseInfo& info, bool silent) {
     }
 
     if (silent) {
-        if (!m_updateAvailable) {
-            m_updateAvailable = true;
+        if (m_pendingUpdateVersion != info.version) {
+            m_pendingUpdateVersion = info.version;
             UpdateTrayIcon(m_currentIconText, m_currentDaysPassed);
             wxLogMessage("Update %s available; flagged in tray tooltip.", info.version);
         }
@@ -1048,7 +1048,7 @@ void SprintToolBoxApp::OnUpdateAvailable(const ReleaseInfo& info, bool silent) {
         DownloadAndLaunch(info);
     } else if (result == wxID_CANCEL) {
         if (m_config) m_config->SetSkippedVersion(info.version);
-        m_updateAvailable = false;
+        m_pendingUpdateVersion.Clear();
         UpdateTrayIcon(m_currentIconText, m_currentDaysPassed);
         wxLogMessage("User skipped update %s.", info.version);
     }

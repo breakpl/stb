@@ -81,7 +81,7 @@ private:
     wxTimer* m_configWatchTimer; // polls INI modification time
     wxTimer* m_updateCheckTimer; // background updater (one-shot, restarted on fire)
 
-    bool     m_updateAvailable; // true when a newer version was silently detected
+    wxString m_pendingUpdateVersion; // non-empty when a newer version was silently detected
 #ifdef __WXOSX__
     void* m_themeObserver;      // NSObject for theme change notifications
     void* m_statusItem;         // NSStatusItem (owned by us, not by wxWidgets)
