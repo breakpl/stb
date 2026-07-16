@@ -1058,9 +1058,12 @@ void SprintToolBoxApp::OnUpdateError(const wxString& error,
                                      const wxString& code, bool silent) {
     wxLogWarning("Update check failed: %s (%s)", error, code);
     if (silent) return;
-    wxMessageBox(
-        wxString::Format("Could not check for updates:\n\n%s", error),
-        "Update check failed", wxOK | wxICON_WARNING);
+    wxString msg = error;
+    if (error.Contains("403"))
+        msg += "\n\nThis is most likely because the GitHub API rate limit has been"
+               " reached on the free tier. Try again later.";
+    wxMessageBox(wxString::Format("Could not check for updates:\n\n%s", msg),
+                 "Update check failed", wxOK | wxICON_WARNING);
 }
 
 void SprintToolBoxApp::FetchPublicSprint() {
