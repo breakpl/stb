@@ -874,6 +874,8 @@ void SprintToolBoxApp::OnCustomizeMenu(wxCommandEvent& event) {
             for (const auto& pair : m_customizeMenuDialog->GetModifiedSubMenus())
                 m_config->SaveSubmenuOrder(pair.first, pair.second);
         }
+        m_customizeMenuDialog->Destroy();
+        m_customizeMenuDialog = nullptr;
     });
 }
 
