@@ -46,6 +46,12 @@ ShowInstDetails show
 
 !insertmacro MUI_LANGUAGE "English"
 
+; ── Kill running instance before installing ───────────────────────────────────
+Section "-KillRunning"
+    ExecWait 'taskkill /f /im "${APP_EXE}"'
+    Sleep 500
+SectionEnd
+
 ; ── Install ───────────────────────────────────────────────────────────────────
 Section "Install" SecMain
     SetOutPath "$INSTDIR"
