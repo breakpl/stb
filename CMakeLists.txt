@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(SprintToolBox VERSION 1.0.35)
+project(SprintToolBox VERSION 1.0.36)
 
 set(CMAKE_CXX_STANDARD 17)
 
