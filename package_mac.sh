@@ -20,6 +20,7 @@ CMAKE_VERSION=$(grep -m1 'project.*VERSION' "$SCRIPT_DIR/CMakeLists.txt" | sed -
 VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
 VERSION="${VERSION:-$CMAKE_VERSION}"
 DATE=$(date +%Y%m%d)
+DMG_NAME="${APP_NAME}-${VERSION}-${DATE}-macos-arm64.dmg"
 
 # ── 1. Build ──────────────────────────────────────────────────────────────────
 echo "==> Building $APP_NAME (Release, arm64)..."
@@ -172,49 +173,23 @@ codesign --force --deep --sign "$SIGN_ID" "${CSFLAGS[@]}" \
          --entitlements "$SCRIPT_DIR/entitlements.plist" "$APP_BUNDLE"
 echo "  OK – app signed."
 
-# ── 6. Create PKG installer ───────────────────────────────────────────────────
-echo "==> Building PKG installer..."
-PKG_NAME="${APP_NAME}-${VERSION}-${DATE}-macos-arm64.pkg"
-PKG_ROOT="$BUILD_DIR/pkg-root"
-PKG_SCRIPTS_DIR="$BUILD_DIR/pkg-scripts"
-
-# Preinstall: kill any running instance before the new bundle is copied in.
-rm -rf "$PKG_SCRIPTS_DIR"
-mkdir -p "$PKG_SCRIPTS_DIR"
-cat > "$PKG_SCRIPTS_DIR/preinstall" << 'PREINSTALL'
-#!/bin/bash
-pkill -x SprintToolBox 2>/dev/null || true
-sleep 1
-exit 0
-PREINSTALL
-chmod +x "$PKG_SCRIPTS_DIR/preinstall"
-
-# Package root: app installs into /Applications.
-rm -rf "$PKG_ROOT"
-mkdir -p "$PKG_ROOT/Applications"
-cp -R "$APP_BUNDLE" "$PKG_ROOT/Applications/"
+# ── 6. Create DMG ─────────────────────────────────────────────────────────────
+echo "==> Building DMG..."
+DMG_STAGE="$BUILD_DIR/dmg-stage"
+rm -rf "$DMG_STAGE"
+mkdir -p "$DMG_STAGE"
+cp -R "$APP_BUNDLE" "$DMG_STAGE/"
+ln -s /Applications "$DMG_STAGE/Applications"
 
 mkdir -p "$DIST_DIR"
+hdiutil create \
+    -volname "$APP_NAME $VERSION" \
+    -srcfolder "$DMG_STAGE" \
+    -ov -format UDZO \
+    "$DIST_DIR/$DMG_NAME"
 
-pkgbuild \
-    --root "$PKG_ROOT" \
-    --scripts "$PKG_SCRIPTS_DIR" \
-    --identifier "${BUNDLE_ID}" \
-    --version "$VERSION" \
-    --install-location "/" \
-    "$BUILD_DIR/${APP_NAME}-component.pkg"
-
-# Sign the PKG with a Developer ID Installer identity when available.
-# Set INSTALLER_SIGN_ID to "Developer ID Installer: Name (TeamID)" to enable.
-if [ -n "${INSTALLER_SIGN_ID:-}" ]; then
-    productsign --sign "$INSTALLER_SIGN_ID" \
-        "$BUILD_DIR/${APP_NAME}-component.pkg" \
-        "$DIST_DIR/$PKG_NAME"
-    echo "  OK – PKG signed with: $INSTALLER_SIGN_ID"
-else
-    cp "$BUILD_DIR/${APP_NAME}-component.pkg" "$DIST_DIR/$PKG_NAME"
-    echo "  Note: PKG is unsigned. Set INSTALLER_SIGN_ID to sign for distribution."
-fi
+codesign --force --sign "$SIGN_ID" "${CSFLAGS[@]}" "$DIST_DIR/$DMG_NAME"
+echo "  OK – DMG signed."
 
 echo ""
-echo "==> Done: $DIST_DIR/$PKG_NAME"
+echo "==> Done: $DIST_DIR/$DMG_NAME"

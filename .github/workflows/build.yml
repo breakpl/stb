@@ -25,8 +25,6 @@ jobs:
         env:
           CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE }}
           CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
-          INSTALLER_CERT_BASE64: ${{ secrets.MACOS_INSTALLER_CERT }}
-          INSTALLER_CERT_PWD: ${{ secrets.MACOS_INSTALLER_PWD }}
         run: |
           KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
           KEYCHAIN_PWD=$(openssl rand -hex 16)
@@ -37,18 +35,6 @@ jobs:
           file "$RUNNER_TEMP/cert.p12"
           security import "$RUNNER_TEMP/cert.p12" -P "$CERTIFICATE_PWD" \
             -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          # Import Developer ID Installer cert when available (enables signed PKG + notarization)
-          if [ -n "${INSTALLER_CERT_BASE64:-}" ]; then
-            echo "$INSTALLER_CERT_BASE64" | base64 --decode -o "$RUNNER_TEMP/installer.p12"
-            security import "$RUNNER_TEMP/installer.p12" -P "${INSTALLER_CERT_PWD:-}" \
-              -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-            INSTALLER_ID=$(security find-identity -v -p basic "$KEYCHAIN_PATH" \
-              | grep 'Developer ID Installer' | head -1 | sed 's/.*"\(.*\)"/\1/')
-            if [ -n "$INSTALLER_ID" ]; then
-              echo "INSTALLER_SIGN_ID=$INSTALLER_ID" >> $GITHUB_ENV
-              echo "==> Installer identity: $INSTALLER_ID"
-            fi
-          fi
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
           security list-keychain -d user -s "$KEYCHAIN_PATH"
@@ -60,25 +46,25 @@ jobs:
         run: ./package_mac.sh
 
       - name: Notarize
-        if: startsWith(github.ref, 'refs/tags/v') && env.INSTALLER_SIGN_ID != ''
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           APPLE_ID: ${{ secrets.NOTARIZE_APPLE_ID }}
           TEAM_ID: ${{ secrets.NOTARIZE_TEAM_ID }}
           NOTARIZE_PWD: ${{ secrets.NOTARIZE_PASSWORD }}
         run: |
-          PKG=$(ls dist/mac/*.pkg)
-          xcrun notarytool submit "$PKG" \
+          DMG=$(ls dist/mac/*.dmg)
+          xcrun notarytool submit "$DMG" \
             --apple-id "$APPLE_ID" \
             --team-id "$TEAM_ID" \
             --password "$NOTARIZE_PWD" \
             --wait
-          xcrun stapler staple "$PKG"
+          xcrun stapler staple "$DMG"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: SprintToolBox-macOS-arm64
-          path: dist/mac/*.pkg
+          path: dist/mac/*.dmg
           retention-days: 30
 
   build-windows:
@@ -190,7 +176,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/**/*.pkg
+            artifacts/**/*.dmg
             artifacts/**/*.exe
             artifacts/**/*.deb
           draft: false

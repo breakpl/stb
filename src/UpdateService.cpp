@@ -79,7 +79,7 @@ wxString ExtractStringField(const wxString& json, const wxString& field, int sta
 std::vector<wxString> PlatformAssetSuffixes() {
 #if defined(__APPLE__)
   #if defined(__aarch64__) || defined(__arm64__)
-    return { "arm64.pkg", "arm64.dmg", "macos-arm64.zip", ".dmg" };
+    return { "arm64.dmg", "macos-arm64.zip", ".dmg" };
   #else
     return { "x86_64.dmg", "x86_64.pkg", "intel.dmg", "macos-x86_64.zip", ".dmg" };
   #endif
