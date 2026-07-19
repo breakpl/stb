@@ -277,6 +277,12 @@ void Config::SaveSubmenuOrder(const wxString& section, const std::vector<MenuIte
         if (sectionStart != -1 && t.StartsWith("[")) { sectionEnd = i; break; }
     }
     wxString out;
+    auto serializeSubItem = [](const MenuItem& item) -> wxString {
+        if (item.isSeparator) return "---=separator\n";
+        if (!item.enabled)    return "#" + item.name + "=" + item.url + "\n";
+        return item.name + "=" + item.url + "\n";
+    };
+
     if (sectionStart == -1) {
         // New section: append after the last non-empty line
         int lastNonEmpty = (int)lines.GetCount() - 1;
@@ -285,22 +291,14 @@ void Config::SaveSubmenuOrder(const wxString& section, const std::vector<MenuIte
         for (int i = 0; i <= lastNonEmpty; i++)
             out += lines[i] + "\n";
         out += "\n" + sectionHeader + "\n";
-        for (const auto& item : items) {
-            if (!item.enabled)
-                out += "#" + item.name + "=" + item.url + "\n";
-            else
-                out += item.name + "=" + item.url + "\n";
-        }
+        for (const auto& item : items)
+            out += serializeSubItem(item);
     } else {
         for (int i = 0; i < sectionStart; i++)
             out += lines[i] + "\n";
         out += sectionHeader + "\n";
-        for (const auto& item : items) {
-            if (!item.enabled)
-                out += "#" + item.name + "=" + item.url + "\n";
-            else
-                out += item.name + "=" + item.url + "\n";
-        }
+        for (const auto& item : items)
+            out += serializeSubItem(item);
         for (int i = sectionEnd; i < (int)lines.GetCount(); i++)
             out += lines[i] + "\n";
     }
@@ -346,8 +344,11 @@ void Config::LoadSubmenu(const wxString& section) {
             int pos = parseLine.Find('=');
             if (pos != wxNOT_FOUND) {
                 wxString name = parseLine.Left(pos).Trim();
-                wxString url = parseLine.Mid(pos + 1).Trim();
-                items.push_back(MenuItem(name, url, enabled));
+                wxString url  = parseLine.Mid(pos + 1).Trim();
+                if (name == "---" || url == "separator")
+                    items.push_back(MenuItem::Separator());
+                else
+                    items.push_back(MenuItem(name, url, enabled));
             }
         }
     }

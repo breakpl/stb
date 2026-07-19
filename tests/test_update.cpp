@@ -165,6 +165,12 @@ TEST_CASE("PickAssetForThisPlatform ignores .exe assets on macOS arm64", "[updat
     REQUIRE(UpdateService::PickAssetForThisPlatform(fragment).IsEmpty());
 }
 
+TEST_CASE("PickAssetForThisPlatform does not match .pkg on macOS arm64", "[update][pick]") {
+    wxString fragment =
+        R"("assets":[{"name":"SprintToolBox-arm64.pkg","browser_download_url":"https://example.com/arm64.pkg"}])";
+    REQUIRE(UpdateService::PickAssetForThisPlatform(fragment).IsEmpty());
+}
+
 TEST_CASE("ParseLatestReleaseJson populates assetUrl for arm64 macOS", "[update][parse]") {
     wxString json =
         R"({"tag_name":"v1.0.18",)"
