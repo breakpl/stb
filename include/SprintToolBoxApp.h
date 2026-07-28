@@ -47,6 +47,7 @@ private:
     void OnSprintUpdateTimer(wxTimerEvent& event);
     void OnConfigWatchTimer(wxTimerEvent& event);
     void OnUpdateCheckTimer(wxTimerEvent& event);
+    void OnRetryTimer(wxTimerEvent& event);
 
     // silent=true: only show dialog if a newer non-skipped version exists.
     // silent=false: also surface "you're up to date" / error messages.
@@ -80,6 +81,7 @@ private:
     wxTimer* m_sprintUpdateTimer;
     wxTimer* m_configWatchTimer; // polls INI modification time
     wxTimer* m_updateCheckTimer; // background updater (one-shot, restarted on fire)
+    wxTimer* m_retryTimer;       // one-shot, fires 30 s after a fetch failure
 
     wxString m_pendingUpdateVersion; // non-empty when a newer version was silently detected
 #ifdef __WXOSX__
@@ -106,6 +108,7 @@ enum {
     ID_SPRINT_TIMER,
     ID_CONFIG_WATCH_TIMER,
     ID_UPDATE_CHECK_TIMER,
+    ID_RETRY_TIMER,
 
     ID_TOGGLE_AUTOSTART,
     ID_CUSTOMIZE_MENU,

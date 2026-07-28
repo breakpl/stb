@@ -30,7 +30,8 @@
       "Bash(codesign -dv /Users/dariusz.kalita/sources/stb/build-arm64/SprintToolBox.app/Contents/MacOS/SprintToolBox)",
       "Skill(run)",
       "Bash(open *)",
-      "Bash(pkill -x SprintToolBox)"
+      "Bash(pkill -x SprintToolBox)",
+      "Bash(ctest *)"
     ]
   }
 }

@@ -72,8 +72,7 @@
 // Constants for menu bar icon
 static const int ICON_FONT_SIZE_MAC = 14;  // SF Mono Regular – sized for attributedTitle
 static const int SPRINT_UPDATE_INTERVAL_MS  = 300000; // 5 minutes
-static const int NETWORK_RETRY_INTERVAL_MS  = 20000;  // 20 s  (window: 5 min)
-static const int NETWORK_RETRY_MAX_COUNT    = 15;     // 15 × 20 s = 5 min
+static const int NETWORK_RETRY_INTERVAL_MS  = 30000;  // 30 s after network/parse failure
 static const int UPDATE_CHECK_INITIAL_MS    = 30000;  // 30 s after launch
 static const int UPDATE_CHECK_INTERVAL_MS   = 6 * 60 * 60 * 1000; // 6 hours
 
@@ -110,6 +109,7 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_TIMER(ID_SPRINT_TIMER, SprintToolBoxApp::OnSprintUpdateTimer)
     EVT_TIMER(ID_CONFIG_WATCH_TIMER, SprintToolBoxApp::OnConfigWatchTimer)
     EVT_TIMER(ID_UPDATE_CHECK_TIMER, SprintToolBoxApp::OnUpdateCheckTimer)
+    EVT_TIMER(ID_RETRY_TIMER, SprintToolBoxApp::OnRetryTimer)
 
     EVT_MENU_RANGE(ID_DYNAMIC_MENU_START, ID_DYNAMIC_MENU_START + 999, SprintToolBoxApp::OnDynamicMenuClick)
     // macOS clicks are routed through StatusItemClickHandler; only Linux/Windows need this.
@@ -131,6 +131,7 @@ SprintToolBoxApp::SprintToolBoxApp()
     , m_sprintUpdateTimer(nullptr)
     , m_configWatchTimer(nullptr)
     , m_updateCheckTimer(nullptr)
+    , m_retryTimer(nullptr)
     , m_currentIconText("...")
     , m_currentDaysPassed(-1)
     , m_menuShowing(false)
@@ -150,6 +151,8 @@ SprintToolBoxApp::SprintToolBoxApp()
     // Setup timer for periodic sprint updates
     m_sprintUpdateTimer = new wxTimer(this, ID_SPRINT_TIMER);
     m_sprintUpdateTimer->Start(SPRINT_UPDATE_INTERVAL_MS);
+
+    m_retryTimer = new wxTimer(this, ID_RETRY_TIMER);
 
     // Updater
     m_updateService = new UpdateService(UPDATE_REPO_OWNER, UPDATE_REPO_NAME);
@@ -884,6 +887,11 @@ void SprintToolBoxApp::OnSprintUpdateTimer(wxTimerEvent& event) {
     UpdateSprint();
 }
 
+void SprintToolBoxApp::OnRetryTimer(wxTimerEvent& event) {
+    wxLogMessage("Retrying sprint fetch after failure.");
+    FetchPublicSprint();
+}
+
 void SprintToolBoxApp::OnConfigWatchTimer(wxTimerEvent& event) {
     if (Config::GetInstance().HasConfigFileChanged()) {
         wxLogMessage("Config file changed on disk – reloading.");
@@ -898,10 +906,11 @@ void SprintToolBoxApp::UpdateSprint() {
 
 void SprintToolBoxApp::OnSprintFetched(const SprintInfo& sprint) {
     wxLogMessage("Sprint fetched: %s", sprint.name);
-    
+    m_retryTimer->Stop();
+
     wxString displayText = sprint.GetDisplayText();
     int daysPassed = sprint.GetDaysPassed();
-    
+
     UpdateTrayIcon(displayText, daysPassed);
 }
 
@@ -1107,6 +1116,7 @@ void SprintToolBoxApp::FetchPublicSprint() {
     if (res != CURLE_OK) {
         wxLogError("Failed to fetch public sprint: %s", curl_easy_strerror(res));
         UpdateTrayIcon("!");
+        m_retryTimer->Start(NETWORK_RETRY_INTERVAL_MS, wxTIMER_ONE_SHOT);
         return;
     }
     
@@ -1117,6 +1127,7 @@ void SprintToolBoxApp::FetchPublicSprint() {
     if (sprint.name == "Unknown Sprint" || sprint.name.IsEmpty()) {
         wxLogError("Failed to parse sprint from public source");
         UpdateTrayIcon("!");
+        m_retryTimer->Start(NETWORK_RETRY_INTERVAL_MS, wxTIMER_ONE_SHOT);
         return;
     }
     
