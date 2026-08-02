@@ -668,7 +668,12 @@ wxMenu* SprintToolBoxApp::BuildPopupMenu() {
     wxMenuItem* autostartItem = menu->AppendCheckItem(ID_TOGGLE_AUTOSTART, "Start at login");
     autostartItem->Check(IsAutostartEnabled());
 
-    menu->Append(ID_CHECK_UPDATES, "Check for updates...");
+    if (!m_pendingUpdateVersion.IsEmpty()) {
+        menu->Append(ID_CHECK_UPDATES,
+            wxString::Format("v%s available – Download", m_pendingUpdateVersion));
+    } else {
+        menu->Append(ID_CHECK_UPDATES, "Check for updates...");
+    }
 
     menu->AppendSeparator();
     wxMenuItem* versionItem = menu->Append(wxID_ANY,
