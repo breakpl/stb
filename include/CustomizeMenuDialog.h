@@ -59,6 +59,9 @@ private:
     wxCheckBox* m_showZuluTimestamp;
     wxCheckBox* m_showTimeConverter;
     wxCheckBox* m_showHexDecConverter;
+    wxCheckBox* m_showBase64Encoder;
+    wxCheckBox* m_showUrlEncoder;
+    wxCheckBox* m_showJsonFormatter;
 };
 
 #endif // CUSTOMIZEMENUDIALOG_H

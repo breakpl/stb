@@ -1,6 +1,9 @@
 #include "SprintToolBoxApp.h"
 #include "ConverterDialog.h"
 #include "TimeConverterDialog.h"
+#include "Base64Dialog.h"
+#include "UrlEncoderDialog.h"
+#include "JsonFormatterDialog.h"
 #include "CustomizeMenuDialog.h"
 #include "JiraService.h"
 #include "UpdateService.h"
@@ -102,6 +105,9 @@ wxBEGIN_EVENT_TABLE(SprintToolBoxApp, wxTaskBarIcon)
     EVT_MENU(ID_COPY_ZULU, SprintToolBoxApp::OnCopyZuluTimestamp)
     EVT_MENU(ID_OPEN_CONVERTER, SprintToolBoxApp::OnOpenConverter)
     EVT_MENU(ID_OPEN_TIME_CONVERTER, SprintToolBoxApp::OnOpenTimeConverter)
+    EVT_MENU(ID_OPEN_BASE64_ENCODER, SprintToolBoxApp::OnOpenBase64Encoder)
+    EVT_MENU(ID_OPEN_URL_ENCODER, SprintToolBoxApp::OnOpenUrlEncoder)
+    EVT_MENU(ID_OPEN_JSON_FORMATTER, SprintToolBoxApp::OnOpenJsonFormatter)
     EVT_MENU(ID_QUIT, SprintToolBoxApp::OnQuit)
     EVT_MENU(ID_CHECK_UPDATES, SprintToolBoxApp::OnCheckUpdatesMenu)
     EVT_MENU(ID_TOGGLE_AUTOSTART, SprintToolBoxApp::OnToggleAutostart)
@@ -125,6 +131,9 @@ SprintToolBoxApp::SprintToolBoxApp()
     : wxTaskBarIcon()
     , m_converterDialog(nullptr)
     , m_timeConverterDialog(nullptr)
+    , m_base64Dialog(nullptr)
+    , m_urlEncoderDialog(nullptr)
+    , m_jsonFormatterDialog(nullptr)
     , m_customizeMenuDialog(nullptr)
     , m_updateService(nullptr)
     , m_config(nullptr)
@@ -267,6 +276,21 @@ SprintToolBoxApp::~SprintToolBoxApp() {
     if (m_timeConverterDialog) {
         m_timeConverterDialog->Destroy();
         m_timeConverterDialog = nullptr;
+    }
+
+    if (m_base64Dialog) {
+        m_base64Dialog->Destroy();
+        m_base64Dialog = nullptr;
+    }
+
+    if (m_urlEncoderDialog) {
+        m_urlEncoderDialog->Destroy();
+        m_urlEncoderDialog = nullptr;
+    }
+
+    if (m_jsonFormatterDialog) {
+        m_jsonFormatterDialog->Destroy();
+        m_jsonFormatterDialog = nullptr;
     }
 
     if (m_customizeMenuDialog) {
@@ -621,6 +645,21 @@ wxMenu* SprintToolBoxApp::BuildPopupMenu() {
         menu->Append(ID_OPEN_CONVERTER, "Hex/Dec Converter");
         hasConverters = true;
     }
+    if (m_config->GetShowBase64Encoder()) {
+        if (!hasConverters && hasTimestampItems) menu->AppendSeparator();
+        menu->Append(ID_OPEN_BASE64_ENCODER, "Base64 Encoder");
+        hasConverters = true;
+    }
+    if (m_config->GetShowUrlEncoder()) {
+        if (!hasConverters && hasTimestampItems) menu->AppendSeparator();
+        menu->Append(ID_OPEN_URL_ENCODER, "URL Encoder");
+        hasConverters = true;
+    }
+    if (m_config->GetShowJsonFormatter()) {
+        if (!hasConverters && hasTimestampItems) menu->AppendSeparator();
+        menu->Append(ID_OPEN_JSON_FORMATTER, "JSON Formatter");
+        hasConverters = true;
+    }
 
     // Add dynamic menu items from config
     std::vector<MenuItem> menuItems = m_config->GetMainMenuItems();
@@ -716,6 +755,33 @@ void SprintToolBoxApp::OnOpenTimeConverter(wxCommandEvent& event) {
     m_timeConverterDialog->Show();
     m_timeConverterDialog->Raise();
     m_timeConverterDialog->ResetToCurrentTime();
+}
+
+void SprintToolBoxApp::OnOpenBase64Encoder(wxCommandEvent& event) {
+    if (!m_base64Dialog) {
+        m_base64Dialog = new Base64Dialog(nullptr);
+    }
+
+    m_base64Dialog->Show();
+    m_base64Dialog->Raise();
+}
+
+void SprintToolBoxApp::OnOpenUrlEncoder(wxCommandEvent& event) {
+    if (!m_urlEncoderDialog) {
+        m_urlEncoderDialog = new UrlEncoderDialog(nullptr);
+    }
+
+    m_urlEncoderDialog->Show();
+    m_urlEncoderDialog->Raise();
+}
+
+void SprintToolBoxApp::OnOpenJsonFormatter(wxCommandEvent& event) {
+    if (!m_jsonFormatterDialog) {
+        m_jsonFormatterDialog = new JsonFormatterDialog(nullptr);
+    }
+
+    m_jsonFormatterDialog->Show();
+    m_jsonFormatterDialog->Raise();
 }
 
 void SprintToolBoxApp::OnDynamicMenuClick(wxCommandEvent& event) {

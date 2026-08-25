@@ -20,14 +20,23 @@ CustomizeMenuDialog::CustomizeMenuDialog(wxWindow* parent, const std::vector<Men
     m_showZuluTimestamp   = new wxCheckBox(this, wxID_ANY, "Zulu Timestamp");
     m_showTimeConverter   = new wxCheckBox(this, wxID_ANY, "Time Converter");
     m_showHexDecConverter = new wxCheckBox(this, wxID_ANY, "Hex/Dec Converter");
+    m_showBase64Encoder   = new wxCheckBox(this, wxID_ANY, "Base64 Encoder");
+    m_showUrlEncoder      = new wxCheckBox(this, wxID_ANY, "URL Encoder");
+    m_showJsonFormatter   = new wxCheckBox(this, wxID_ANY, "JSON Formatter");
     m_showUnixTimestamp->SetValue(displayFlags.showUnixTimestamp);
     m_showZuluTimestamp->SetValue(displayFlags.showZuluTimestamp);
     m_showTimeConverter->SetValue(displayFlags.showTimeConverter);
     m_showHexDecConverter->SetValue(displayFlags.showHexDecConverter);
+    m_showBase64Encoder->SetValue(displayFlags.showBase64Encoder);
+    m_showUrlEncoder->SetValue(displayFlags.showUrlEncoder);
+    m_showJsonFormatter->SetValue(displayFlags.showJsonFormatter);
     displaySizer->Add(m_showUnixTimestamp,   0, wxALL, 4);
     displaySizer->Add(m_showZuluTimestamp,   0, wxLEFT | wxRIGHT | wxBOTTOM, 4);
     displaySizer->Add(m_showTimeConverter,   0, wxLEFT | wxRIGHT | wxBOTTOM, 4);
     displaySizer->Add(m_showHexDecConverter, 0, wxLEFT | wxRIGHT | wxBOTTOM, 4);
+    displaySizer->Add(m_showBase64Encoder,   0, wxLEFT | wxRIGHT | wxBOTTOM, 4);
+    displaySizer->Add(m_showUrlEncoder,      0, wxLEFT | wxRIGHT | wxBOTTOM, 4);
+    displaySizer->Add(m_showJsonFormatter,   0, wxLEFT | wxRIGHT | wxBOTTOM, 4);
     mainSizer->Add(displaySizer, 0, wxEXPAND | wxALL, 12);
 
     wxStaticText* hint = new wxStaticText(this, wxID_ANY,
@@ -137,7 +146,10 @@ DisplayFlags CustomizeMenuDialog::GetDisplayFlags() const {
         m_showUnixTimestamp->GetValue(),
         m_showZuluTimestamp->GetValue(),
         m_showTimeConverter->GetValue(),
-        m_showHexDecConverter->GetValue()
+        m_showHexDecConverter->GetValue(),
+        m_showBase64Encoder->GetValue(),
+        m_showUrlEncoder->GetValue(),
+        m_showJsonFormatter->GetValue()
     };
 }
 
