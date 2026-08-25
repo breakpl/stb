@@ -11,6 +11,9 @@ struct DisplayFlags {
     bool showZuluTimestamp;
     bool showTimeConverter;
     bool showHexDecConverter;
+    bool showBase64Encoder;
+    bool showUrlEncoder;
+    bool showJsonFormatter;
 };
 
 struct MenuItem {
@@ -50,6 +53,9 @@ public:
     bool GetShowZuluTimestamp() const { return m_showZuluTimestamp; }
     bool GetShowTimeConverter() const { return m_showTimeConverter; }
     bool GetShowHexDecConverter() const { return m_showHexDecConverter; }
+    bool GetShowBase64Encoder() const { return m_showBase64Encoder; }
+    bool GetShowUrlEncoder() const { return m_showUrlEncoder; }
+    bool GetShowJsonFormatter() const { return m_showJsonFormatter; }
     DisplayFlags GetDisplayFlags() const;
     void SaveDisplayFlags(const DisplayFlags& flags);
     
@@ -83,6 +89,9 @@ private:
     bool m_showZuluTimestamp;
     bool m_showTimeConverter;
     bool m_showHexDecConverter;
+    bool m_showBase64Encoder;
+    bool m_showUrlEncoder;
+    bool m_showJsonFormatter;
     std::vector<MenuItem> m_mainMenuItems;
     std::map<wxString, std::vector<MenuItem>> m_subMenus;
 };

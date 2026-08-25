@@ -21,3 +21,4 @@ dist/
 
 #ai
 .claude/
+.claude/settings.local.json

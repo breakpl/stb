@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(SprintToolBox VERSION 1.0.39)
+project(SprintToolBox VERSION 1.0.40)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -20,6 +20,9 @@ set(SOURCES
     src/SprintToolBoxApp.cpp
     src/ConverterDialog.cpp
     src/TimeConverterDialog.cpp
+    src/Base64Dialog.cpp
+    src/UrlEncoderDialog.cpp
+    src/JsonFormatterDialog.cpp
     src/CustomizeMenuDialog.cpp
     src/AddItemDialog.cpp
     src/TimestampUtils.cpp

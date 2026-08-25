@@ -14,7 +14,9 @@ Config& Config::GetInstance() {
 
 Config::Config() : m_configModTime(0),
                    m_showUnixTimestamp(true), m_showZuluTimestamp(true),
-                   m_showTimeConverter(true), m_showHexDecConverter(true) {
+                   m_showTimeConverter(true), m_showHexDecConverter(true),
+                   m_showBase64Encoder(true), m_showUrlEncoder(true),
+                   m_showJsonFormatter(true) {
     LoadConfig();
 }
 
@@ -100,6 +102,9 @@ void Config::LoadConfig() {
                 if (key.CmpNoCase("ShowZuluTimestamp") == 0) m_showZuluTimestamp = boolValue;
                 if (key.CmpNoCase("ShowTimeConverter") == 0) m_showTimeConverter = boolValue;
                 if (key.CmpNoCase("ShowHexDecConverter") == 0) m_showHexDecConverter = boolValue;
+                if (key.CmpNoCase("ShowBase64Encoder") == 0) m_showBase64Encoder = boolValue;
+                if (key.CmpNoCase("ShowUrlEncoder") == 0) m_showUrlEncoder = boolValue;
+                if (key.CmpNoCase("ShowJsonFormatter") == 0) m_showJsonFormatter = boolValue;
             }
         }
     }
@@ -159,7 +164,8 @@ void Config::LoadMainMenu() {
 }
 
 DisplayFlags Config::GetDisplayFlags() const {
-    return { m_showUnixTimestamp, m_showZuluTimestamp, m_showTimeConverter, m_showHexDecConverter };
+    return { m_showUnixTimestamp, m_showZuluTimestamp, m_showTimeConverter, m_showHexDecConverter,
+             m_showBase64Encoder, m_showUrlEncoder, m_showJsonFormatter };
 }
 
 void Config::SaveDisplayFlags(const DisplayFlags& flags) {
@@ -192,6 +198,9 @@ void Config::SaveDisplayFlags(const DisplayFlags& flags) {
     out += "ShowZuluTimestamp="   + boolStr(flags.showZuluTimestamp)   + "\n";
     out += "ShowTimeConverter="   + boolStr(flags.showTimeConverter)   + "\n";
     out += "ShowHexDecConverter=" + boolStr(flags.showHexDecConverter) + "\n";
+    out += "ShowBase64Encoder="   + boolStr(flags.showBase64Encoder)   + "\n";
+    out += "ShowUrlEncoder="      + boolStr(flags.showUrlEncoder)      + "\n";
+    out += "ShowJsonFormatter="   + boolStr(flags.showJsonFormatter)   + "\n";
     for (int i = sectionEnd; i < (int)lines.GetCount(); i++)
         out += lines[i] + "\n";
 

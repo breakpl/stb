@@ -15,6 +15,9 @@
 
 class ConverterDialog;
 class TimeConverterDialog;
+class Base64Dialog;
+class UrlEncoderDialog;
+class JsonFormatterDialog;
 class CustomizeMenuDialog;
 class Config;
 
@@ -42,6 +45,9 @@ private:
     void OnCopyZuluTimestamp(wxCommandEvent& event);
     void OnOpenConverter(wxCommandEvent& event);
     void OnOpenTimeConverter(wxCommandEvent& event);
+    void OnOpenBase64Encoder(wxCommandEvent& event);
+    void OnOpenUrlEncoder(wxCommandEvent& event);
+    void OnOpenJsonFormatter(wxCommandEvent& event);
     void OnQuit(wxCommandEvent& event);
     void OnCheckUpdatesMenu(wxCommandEvent& event);
     void OnSprintUpdateTimer(wxTimerEvent& event);
@@ -75,6 +81,9 @@ private:
     bool m_menuShowing;         // guard against re-entrant ShowContextMenu()
     ConverterDialog* m_converterDialog;
     TimeConverterDialog* m_timeConverterDialog;
+    Base64Dialog* m_base64Dialog;
+    UrlEncoderDialog* m_urlEncoderDialog;
+    JsonFormatterDialog* m_jsonFormatterDialog;
     CustomizeMenuDialog* m_customizeMenuDialog;
     UpdateService* m_updateService;
     Config* m_config;
@@ -103,6 +112,9 @@ enum {
     ID_COPY_ZULU,
     ID_OPEN_CONVERTER,
     ID_OPEN_TIME_CONVERTER,
+    ID_OPEN_BASE64_ENCODER,
+    ID_OPEN_URL_ENCODER,
+    ID_OPEN_JSON_FORMATTER,
     ID_QUIT,
     ID_CHECK_UPDATES,
     ID_SPRINT_TIMER,
