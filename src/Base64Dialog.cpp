@@ -1,7 +1,7 @@
 #include "Base64Dialog.h"
+#include "Base64Utils.h"
 #include <wx/sizer.h>
 #include <wx/stattext.h>
-#include <wx/base64.h>
 
 wxBEGIN_EVENT_TABLE(Base64Dialog, wxDialog)
     EVT_CLOSE(Base64Dialog::OnClose)
@@ -53,11 +53,11 @@ void Base64Dialog::OnPlainChanged(wxCommandEvent& event) {
         return;
     }
 
-    wxScopedCharBuffer utf8 = text.utf8_str();
-    wxString encoded = wxBase64Encode(utf8.data(), utf8.length());
+    const wxScopedCharBuffer utf8 = text.utf8_str();
+    std::string encodedStr = Base64Utils::Encode(std::string(utf8.data(), utf8.length()));
 
     m_updating = true;
-    m_encodedField->SetValue(encoded);
+    m_encodedField->SetValue(wxString::FromAscii(encodedStr.c_str()));
     m_encodedField->SetBackgroundColour(wxColour(200, 200, 200));
     m_plainField->SetBackgroundColour(wxNullColour);
     m_updating = false;
@@ -79,10 +79,13 @@ void Base64Dialog::OnEncodedChanged(wxCommandEvent& event) {
         return;
     }
 
-    wxMemoryBuffer buf = wxBase64Decode(text, wxBase64DecodeMode_SkipWS, nullptr);
-    if (buf.GetDataLen() > 0 || text.Trim().IsEmpty()) {
-        wxString decoded = wxString::FromUTF8(
-            static_cast<const char*>(buf.GetData()), buf.GetDataLen());
+    const wxScopedCharBuffer utf8Input = text.utf8_str();
+    bool decodeValid = false;
+    std::string decodedStr = Base64Utils::Decode(
+        std::string(utf8Input.data(), utf8Input.length()), &decodeValid);
+
+    if (decodeValid) {
+        wxString decoded = wxString::FromUTF8(decodedStr.c_str(), decodedStr.size());
 
         m_updating = true;
         m_plainField->SetValue(decoded);

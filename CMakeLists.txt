@@ -26,6 +26,9 @@ set(SOURCES
     src/CustomizeMenuDialog.cpp
     src/AddItemDialog.cpp
     src/TimestampUtils.cpp
+    src/Base64Utils.cpp
+    src/UrlEncoderUtils.cpp
+    src/JsonFormatterUtils.cpp
     src/JiraService.cpp
     src/UpdateService.cpp
     src/Config.cpp

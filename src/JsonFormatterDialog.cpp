@@ -1,112 +1,11 @@
 #include "JsonFormatterDialog.h"
+#include "JsonFormatterUtils.h"
 #include <wx/sizer.h>
 #include <wx/stattext.h>
 
 wxBEGIN_EVENT_TABLE(JsonFormatterDialog, wxDialog)
     EVT_CLOSE(JsonFormatterDialog::OnClose)
 wxEND_EVENT_TABLE()
-
-static wxString FormatJson(const wxString& input, bool* valid) {
-    wxString result;
-    int indent = 0;
-    bool inString = false;
-    bool escape = false;
-    bool hasError = false;
-
-    for (size_t i = 0; i < input.length(); i++) {
-        wxChar c = input[i];
-
-        if (escape) {
-            result += c;
-            escape = false;
-            continue;
-        }
-        if (c == '\\' && inString) {
-            result += c;
-            escape = true;
-            continue;
-        }
-        if (c == '"') {
-            inString = !inString;
-            result += c;
-            continue;
-        }
-        if (inString) {
-            result += c;
-            continue;
-        }
-
-        if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
-            continue;
-
-        switch (c) {
-            case '{': case '[':
-                result += c;
-                result += '\n';
-                indent++;
-                result += wxString(indent * 2, ' ');
-                break;
-            case '}': case ']':
-                result += '\n';
-                if (indent > 0) {
-                    indent--;
-                } else {
-                    hasError = true;
-                }
-                result += wxString(indent * 2, ' ');
-                result += c;
-                break;
-            case ',':
-                result += c;
-                result += '\n';
-                result += wxString(indent * 2, ' ');
-                break;
-            case ':':
-                result += ": ";
-                break;
-            default:
-                result += c;
-        }
-    }
-
-    if (valid) *valid = !inString && indent == 0 && !hasError;
-    return result;
-}
-
-static wxString MinifyJson(const wxString& input) {
-    wxString result;
-    bool inString = false;
-    bool escape = false;
-
-    for (size_t i = 0; i < input.length(); i++) {
-        wxChar c = input[i];
-
-        if (escape) {
-            result += c;
-            escape = false;
-            continue;
-        }
-        if (c == '\\' && inString) {
-            result += c;
-            escape = true;
-            continue;
-        }
-        if (c == '"') {
-            inString = !inString;
-            result += c;
-            continue;
-        }
-        if (inString) {
-            result += c;
-            continue;
-        }
-        if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
-            continue;
-        result += c;
-    }
-
-    return result;
-}
 
 JsonFormatterDialog::JsonFormatterDialog(wxWindow* parent)
     : wxDialog(parent, wxID_ANY, "JSON Formatter",
@@ -160,11 +59,13 @@ void JsonFormatterDialog::OnInputChanged(wxCommandEvent& event) {
         return;
     }
 
+    const wxScopedCharBuffer utf8 = text.utf8_str();
     bool valid = false;
-    wxString formatted = FormatJson(text, &valid);
+    std::string formattedStr = JsonFormatterUtils::Format(
+        std::string(utf8.data(), utf8.length()), &valid);
 
     m_updating = true;
-    m_outputField->SetValue(formatted);
+    m_outputField->SetValue(wxString::FromUTF8(formattedStr.c_str(), formattedStr.size()));
     m_outputField->SetBackgroundColour(wxColour(200, 200, 200));
     if (valid) {
         m_inputField->SetBackgroundColour(wxNullColour);
@@ -195,8 +96,12 @@ void JsonFormatterDialog::OnOutputChanged(wxCommandEvent& event) {
         return;
     }
 
+    const wxScopedCharBuffer utf8 = text.utf8_str();
+    std::string minifiedStr = JsonFormatterUtils::Minify(
+        std::string(utf8.data(), utf8.length()));
+
     m_updating = true;
-    m_inputField->SetValue(MinifyJson(text));
+    m_inputField->SetValue(wxString::FromUTF8(minifiedStr.c_str(), minifiedStr.size()));
     m_inputField->SetBackgroundColour(wxColour(200, 200, 200));
     m_outputField->SetBackgroundColour(wxNullColour);
     m_statusLabel->SetLabel("");

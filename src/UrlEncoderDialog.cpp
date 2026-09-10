@@ -1,50 +1,11 @@
 #include "UrlEncoderDialog.h"
+#include "UrlEncoderUtils.h"
 #include <wx/sizer.h>
 #include <wx/stattext.h>
-#include <wx/uri.h>
 
 wxBEGIN_EVENT_TABLE(UrlEncoderDialog, wxDialog)
     EVT_CLOSE(UrlEncoderDialog::OnClose)
 wxEND_EVENT_TABLE()
-
-static wxString PercentEncode(const wxString& input) {
-    wxString result;
-    wxScopedCharBuffer utf8 = input.utf8_str();
-    const char* p = utf8.data();
-    while (*p) {
-        unsigned char c = static_cast<unsigned char>(*p++);
-        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
-            (c >= '0' && c <= '9') ||
-            c == '-' || c == '_' || c == '.' || c == '~') {
-            result += static_cast<char>(c);
-        } else {
-            result += wxString::Format("%%%02X", c);
-        }
-    }
-    return result;
-}
-
-static wxString PercentDecode(const wxString& input) {
-    wxString result;
-    size_t len = input.length();
-    for (size_t i = 0; i < len; ++i) {
-        wxChar c = input[i];
-        if (c == '%' && i + 2 < len) {
-            wxString hex = input.Mid(i + 1, 2);
-            unsigned long val;
-            if (hex.ToULong(&val, 16)) {
-                result += static_cast<char>(val);
-                i += 2;
-                continue;
-            }
-        } else if (c == '+') {
-            result += ' ';
-            continue;
-        }
-        result += c;
-    }
-    return result;
-}
 
 UrlEncoderDialog::UrlEncoderDialog(wxWindow* parent)
     : wxDialog(parent, wxID_ANY, "URL Encoder",
@@ -92,8 +53,11 @@ void UrlEncoderDialog::OnPlainChanged(wxCommandEvent& event) {
         return;
     }
 
+    const wxScopedCharBuffer utf8 = text.utf8_str();
+    std::string encodedStr = UrlEncoderUtils::Encode(std::string(utf8.data(), utf8.length()));
+
     m_updating = true;
-    m_encodedField->SetValue(PercentEncode(text));
+    m_encodedField->SetValue(wxString::FromAscii(encodedStr.c_str()));
     m_encodedField->SetBackgroundColour(wxColour(200, 200, 200));
     m_plainField->SetBackgroundColour(wxNullColour);
     m_updating = false;
@@ -115,8 +79,11 @@ void UrlEncoderDialog::OnEncodedChanged(wxCommandEvent& event) {
         return;
     }
 
+    const wxScopedCharBuffer utf8Input = text.utf8_str();
+    std::string decodedStr = UrlEncoderUtils::Decode(std::string(utf8Input.data(), utf8Input.length()));
+
     m_updating = true;
-    m_plainField->SetValue(PercentDecode(text));
+    m_plainField->SetValue(wxString::FromUTF8(decodedStr.c_str(), decodedStr.size()));
     m_plainField->SetBackgroundColour(wxColour(200, 200, 200));
     m_encodedField->SetBackgroundColour(wxNullColour);
     m_updating = false;

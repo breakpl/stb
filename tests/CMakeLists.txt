@@ -59,3 +59,33 @@ if(APPLE)
     target_link_libraries(test_update PRIVATE "-framework Cocoa")
 endif()
 add_test(NAME test_update COMMAND test_update)
+
+# ── test_base64 ────────────────────────────────────────────────────────────────
+# Pure C++ – no wxWidgets dependency. Tests Base64Utils encode/decode.
+add_executable(test_base64
+    test_base64.cpp
+    ${CMAKE_SOURCE_DIR}/src/Base64Utils.cpp
+)
+target_include_directories(test_base64 PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(test_base64 PRIVATE Catch2::Catch2WithMain)
+add_test(NAME test_base64 COMMAND test_base64)
+
+# ── test_url_encoder ───────────────────────────────────────────────────────────
+# Pure C++ – no wxWidgets dependency. Tests UrlEncoderUtils percent-encode/decode.
+add_executable(test_url_encoder
+    test_url_encoder.cpp
+    ${CMAKE_SOURCE_DIR}/src/UrlEncoderUtils.cpp
+)
+target_include_directories(test_url_encoder PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(test_url_encoder PRIVATE Catch2::Catch2WithMain)
+add_test(NAME test_url_encoder COMMAND test_url_encoder)
+
+# ── test_json_formatter ────────────────────────────────────────────────────────
+# Pure C++ – no wxWidgets dependency. Tests JsonFormatterUtils format/minify.
+add_executable(test_json_formatter
+    test_json_formatter.cpp
+    ${CMAKE_SOURCE_DIR}/src/JsonFormatterUtils.cpp
+)
+target_include_directories(test_json_formatter PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(test_json_formatter PRIVATE Catch2::Catch2WithMain)
+add_test(NAME test_json_formatter COMMAND test_json_formatter)
