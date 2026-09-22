@@ -16,7 +16,7 @@ static OSStatus HotkeyEventHandler(EventHandlerCallRef, EventRef event, void* us
 }
 
 HotkeyManager::HotkeyManager(UrlCallback onTrigger)
-    : m_handlerRef(nullptr), m_onTrigger(std::move(onTrigger)), m_nextId(1)
+    : m_onTrigger(std::move(onTrigger)), m_nextId(1), m_handlerRef(nullptr)
 {
     EventTypeSpec eventType = { kEventClassKeyboard, kEventHotKeyPressed };
     EventHandlerRef handler = nullptr;

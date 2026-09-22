@@ -150,6 +150,8 @@ SprintToolBoxApp::SprintToolBoxApp()
     , m_themeObserver(nullptr)
     , m_statusItem(nullptr)
     , m_statusItemHandler(nullptr)
+#endif
+#if defined(__WXOSX__) || defined(_WIN32)
     , m_hotkeyManager(nullptr)
 #endif
 #ifdef _WIN32
@@ -214,7 +216,7 @@ SprintToolBoxApp::SprintToolBoxApp()
     CallAfter([this]() {
         UpdateTrayIcon("...");
         UpdateSprint();
-#ifdef __WXOSX__
+#if defined(__WXOSX__) || defined(_WIN32)
         RegisterHotkeys();
 #endif
     });
@@ -241,6 +243,10 @@ SprintToolBoxApp::~SprintToolBoxApp() {
         m_themeObserver = nullptr;
     }
 
+
+#endif // __WXOSX__
+
+#if defined(__WXOSX__) || defined(_WIN32)
     delete m_hotkeyManager;
     m_hotkeyManager = nullptr;
 #endif
@@ -1013,7 +1019,9 @@ static void ApplyHotkeyLabels(wxMenu* menu,
         }
     }
 }
+#endif // __WXOSX__
 
+#if defined(__WXOSX__) || defined(_WIN32)
 void SprintToolBoxApp::RegisterHotkeys() {
     // Rebuild the manager so any previous registrations are released first.
     delete m_hotkeyManager;
@@ -1070,7 +1078,7 @@ void SprintToolBoxApp::OnConfigWatchTimer(wxTimerEvent& event) {
         wxLogMessage("Config file changed on disk – reloading.");
         Config::GetInstance().Reload();
         UpdateSprint();
-#ifdef __WXOSX__
+#if defined(__WXOSX__) || defined(_WIN32)
         RegisterHotkeys();
 #endif
     }

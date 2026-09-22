@@ -20,7 +20,7 @@ class UrlEncoderDialog;
 class JsonFormatterDialog;
 class CustomizeMenuDialog;
 class Config;
-#ifdef __WXOSX__
+#if defined(__WXOSX__) || defined(_WIN32)
 class HotkeyManager;
 #endif
 
@@ -70,7 +70,7 @@ private:
     void OnToggleAutostart(wxCommandEvent& event);
     void OnCustomizeMenu(wxCommandEvent& event);
 
-#ifdef __WXOSX__
+#if defined(__WXOSX__) || defined(_WIN32)
     void RegisterHotkeys();
 #endif
 
@@ -104,6 +104,8 @@ private:
     void* m_themeObserver;      // NSObject for theme change notifications
     void* m_statusItem;         // NSStatusItem (owned by us, not by wxWidgets)
     void* m_statusItemHandler;  // StatusItemClickHandler target for the button
+#endif
+#if defined(__WXOSX__) || defined(_WIN32)
     HotkeyManager* m_hotkeyManager;
 #endif
 #ifdef _WIN32

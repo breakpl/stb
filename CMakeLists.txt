@@ -37,6 +37,9 @@ set(SOURCES
 if(APPLE)
     list(APPEND SOURCES src/HotkeyManager.mm)
 endif()
+if(WIN32)
+    list(APPEND SOURCES src/HotkeyManager_win.cpp)
+endif()
 
 add_executable(${PROJECT_NAME} WIN32 MACOSX_BUNDLE ${SOURCES})
 
