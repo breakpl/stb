@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(SprintToolBox VERSION 1.0.40)
+project(SprintToolBox VERSION 1.0.41)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -34,6 +34,10 @@ set(SOURCES
     src/Config.cpp
 )
 
+if(APPLE)
+    list(APPEND SOURCES src/HotkeyManager.mm)
+endif()
+
 add_executable(${PROJECT_NAME} WIN32 MACOSX_BUNDLE ${SOURCES})
 
 # GitHub repo coordinates for the in-app updater. Override at configure
@@ -55,7 +59,9 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 if(APPLE)
     set_source_files_properties(src/SprintToolBoxApp.cpp PROPERTIES
         COMPILE_FLAGS "-x objective-c++")
-    target_link_libraries(${PROJECT_NAME} ${wxWidgets_LIBRARIES} ${CURL_LIBRARIES} "-framework Cocoa" "-framework ServiceManagement")
+    set_source_files_properties(src/HotkeyManager.mm PROPERTIES
+        COMPILE_FLAGS "-x objective-c++")
+    target_link_libraries(${PROJECT_NAME} ${wxWidgets_LIBRARIES} ${CURL_LIBRARIES} "-framework Cocoa" "-framework ServiceManagement" "-framework Carbon")
     
     # Copy SprintToolBox.ini to bundle Resources
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD

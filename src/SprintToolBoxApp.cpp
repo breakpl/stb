@@ -1,4 +1,5 @@
 #include "SprintToolBoxApp.h"
+#include "HotkeyManager.h"
 #include "ConverterDialog.h"
 #include "TimeConverterDialog.h"
 #include "Base64Dialog.h"
@@ -149,6 +150,7 @@ SprintToolBoxApp::SprintToolBoxApp()
     , m_themeObserver(nullptr)
     , m_statusItem(nullptr)
     , m_statusItemHandler(nullptr)
+    , m_hotkeyManager(nullptr)
 #endif
 #ifdef _WIN32
     , m_themeHwnd(nullptr)
@@ -212,6 +214,9 @@ SprintToolBoxApp::SprintToolBoxApp()
     CallAfter([this]() {
         UpdateTrayIcon("...");
         UpdateSprint();
+#ifdef __WXOSX__
+        RegisterHotkeys();
+#endif
     });
 }
 
@@ -235,6 +240,9 @@ SprintToolBoxApp::~SprintToolBoxApp() {
         (void)CFBridgingRelease(m_themeObserver);
         m_themeObserver = nullptr;
     }
+
+    delete m_hotkeyManager;
+    m_hotkeyManager = nullptr;
 #endif
 
 #ifdef _WIN32
@@ -614,6 +622,10 @@ void SprintToolBoxApp::ShowContextMenu() {
     m_menuShowing = false;
 }
 
+#ifdef __WXOSX__
+static void ApplyHotkeyLabels(wxMenu*, const std::map<wxString, wxString>&);
+#endif
+
 wxMenu* SprintToolBoxApp::BuildPopupMenu() {
     // Update timestamps before showing menu
     UpdateTimestamps();
@@ -720,6 +732,10 @@ wxMenu* SprintToolBoxApp::BuildPopupMenu() {
     versionItem->Enable(false);
 
     menu->Append(ID_QUIT, "Quit");
+
+#ifdef __WXOSX__
+    ApplyHotkeyLabels(menu, m_config->GetHotkeys());
+#endif
 
     return menu;
 }
@@ -953,6 +969,92 @@ void SprintToolBoxApp::OnCustomizeMenu(wxCommandEvent& event) {
     });
 }
 
+#ifdef __WXOSX__
+// Stamps keyEquivalent/keyEquivalentModifierMask onto NSMenuItems that appear
+// in the hotkeys map, so the shortcut shows up greyed-out in the menu.
+// Searches one level of submenus so submenu items can be labelled too.
+static void ApplyHotkeyLabels(wxMenu* menu,
+                               const std::map<wxString, wxString>& hotkeys) {
+    NSMenu* nsMenu = (__bridge NSMenu*)(void*)menu->GetHMenu();
+    if (!nsMenu) return;
+
+    for (const auto& kv : hotkeys) {
+        const wxString& name  = kv.first;
+        const wxString& combo = kv.second;
+
+        NSEventModifierFlags modMask = 0;
+        wxString keyName;
+        wxArrayString parts = wxSplit(combo.Upper(), '+');
+        for (size_t i = 0; i < parts.GetCount(); ++i) {
+            wxString p = parts[i].Trim().Trim(false);
+            if      (p == "CMD"  || p == "COMMAND")          modMask |= NSEventModifierFlagCommand;
+            else if (p == "SHIFT")                             modMask |= NSEventModifierFlagShift;
+            else if (p == "CTRL" || p == "CONTROL")           modMask |= NSEventModifierFlagControl;
+            else if (p == "ALT"  || p == "OPT" || p == "OPTION") modMask |= NSEventModifierFlagOption;
+            else keyName = p;
+        }
+        if (keyName.IsEmpty() || modMask == 0) continue;
+
+        NSString* nsTitle  = [NSString stringWithUTF8String:name.utf8_str()];
+        NSString* nsKeyEq  = [NSString stringWithUTF8String:keyName.Lower().utf8_str()];
+
+        // Search the top-level menu and one level of submenus.
+        NSMenuItem* found = nil;
+        for (NSMenuItem* item in nsMenu.itemArray) {
+            if ([item.title isEqualToString:nsTitle]) { found = item; break; }
+            if (item.hasSubmenu) {
+                NSMenuItem* sub = [item.submenu itemWithTitle:nsTitle];
+                if (sub) { found = sub; break; }
+            }
+        }
+        if (found) {
+            found.keyEquivalent             = nsKeyEq;
+            found.keyEquivalentModifierMask = modMask;
+        }
+    }
+}
+
+void SprintToolBoxApp::RegisterHotkeys() {
+    // Rebuild the manager so any previous registrations are released first.
+    delete m_hotkeyManager;
+    m_hotkeyManager = nullptr;
+
+    std::map<wxString, wxString> hotkeys = m_config->GetHotkeys();
+    if (hotkeys.empty()) return;
+
+    // Build a name→url lookup that covers both flat items and submenu items.
+    std::map<wxString, wxString> nameToUrl;
+    for (const auto& item : m_config->GetMainMenuItems()) {
+        if (!item.isSeparator && !item.url.StartsWith("submenu:"))
+            nameToUrl[item.name] = item.url;
+    }
+    for (const auto& kv : m_config->GetSubMenus()) {
+        for (const auto& item : kv.second) {
+            if (!item.isSeparator)
+                nameToUrl[item.name] = item.url;
+        }
+    }
+
+    m_hotkeyManager = new HotkeyManager([](const wxString& url) {
+        wxLaunchDefaultBrowser(url);
+    });
+
+    for (const auto& kv : hotkeys) {
+        const wxString& name  = kv.first;
+        const wxString& combo = kv.second;
+        auto it = nameToUrl.find(name);
+        if (it == nameToUrl.end()) {
+            wxLogWarning("Hotkey target '%s' not found in menu items", name);
+            continue;
+        }
+        if (!m_hotkeyManager->Register(combo, it->second))
+            wxLogWarning("Failed to register hotkey %s for '%s' (combo invalid or already taken)", combo, name);
+        else
+            wxLogMessage("Registered hotkey %s → %s", combo, name);
+    }
+}
+#endif
+
 void SprintToolBoxApp::OnSprintUpdateTimer(wxTimerEvent& event) {
     wxLogMessage("Scheduled update timer fired.");
     UpdateSprint();
@@ -968,6 +1070,9 @@ void SprintToolBoxApp::OnConfigWatchTimer(wxTimerEvent& event) {
         wxLogMessage("Config file changed on disk – reloading.");
         Config::GetInstance().Reload();
         UpdateSprint();
+#ifdef __WXOSX__
+        RegisterHotkeys();
+#endif
     }
 }
 

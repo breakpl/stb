@@ -20,6 +20,9 @@ class UrlEncoderDialog;
 class JsonFormatterDialog;
 class CustomizeMenuDialog;
 class Config;
+#ifdef __WXOSX__
+class HotkeyManager;
+#endif
 
 class SprintToolBoxApp : public wxTaskBarIcon {
 public:
@@ -67,6 +70,10 @@ private:
     void OnToggleAutostart(wxCommandEvent& event);
     void OnCustomizeMenu(wxCommandEvent& event);
 
+#ifdef __WXOSX__
+    void RegisterHotkeys();
+#endif
+
     bool IsAutostartEnabled();
     void SetAutostart(bool enable);
 
@@ -97,6 +104,7 @@ private:
     void* m_themeObserver;      // NSObject for theme change notifications
     void* m_statusItem;         // NSStatusItem (owned by us, not by wxWidgets)
     void* m_statusItemHandler;  // StatusItemClickHandler target for the button
+    HotkeyManager* m_hotkeyManager;
 #endif
 #ifdef _WIN32
     HWND m_themeHwnd;       // Hidden window for WM_SETTINGCHANGE on Windows

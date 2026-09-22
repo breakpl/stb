@@ -26,6 +26,7 @@ Config::~Config() {
 void Config::Reload() {
     m_mainMenuItems.clear();
     m_subMenus.clear();
+    m_hotkeys.clear();
     LoadConfig();
 }
 
@@ -109,8 +110,9 @@ void Config::LoadConfig() {
         }
     }
     
-    // Load menu items
+    // Load menu items and hotkeys
     LoadMainMenu();
+    LoadHotkeys();
 }
 
 void Config::LoadMainMenu() {
@@ -158,6 +160,28 @@ void Config::LoadMainMenu() {
                 } else {
                     m_mainMenuItems.push_back(MenuItem(name, value, enabled));
                 }
+            }
+        }
+    }
+}
+
+void Config::LoadHotkeys() {
+    if (!wxFileExists(m_configPath)) return;
+
+    wxFileInputStream input(m_configPath);
+    wxTextInputStream text(input);
+    bool inHotkeys = false;
+
+    while (!input.Eof()) {
+        wxString line = text.ReadLine().Trim();
+        if (line == "[Hotkeys]") { inHotkeys = true; continue; }
+        if (inHotkeys && line.StartsWith("[")) break;
+        if (inHotkeys && !line.IsEmpty() && !line.StartsWith("#")) {
+            int pos = line.Find('=');
+            if (pos != wxNOT_FOUND) {
+                wxString name  = line.Left(pos).Trim();
+                wxString combo = line.Mid(pos + 1).Trim();
+                m_hotkeys[name] = combo;
             }
         }
     }

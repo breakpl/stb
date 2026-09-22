@@ -89,3 +89,24 @@ add_executable(test_json_formatter
 target_include_directories(test_json_formatter PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(test_json_formatter PRIVATE Catch2::Catch2WithMain)
 add_test(NAME test_json_formatter COMMAND test_json_formatter)
+
+# ── test_hotkeys ───────────────────────────────────────────────────────────────
+# Tests HotkeyManager::ParseKeyCombo (key combo string → Carbon key code +
+# modifier flags). Apple-only: HotkeyManager and Carbon are macOS-specific.
+if(APPLE)
+    add_executable(test_hotkeys
+        test_hotkeys.cpp
+        ${CMAKE_SOURCE_DIR}/src/HotkeyManager.mm
+    )
+    target_include_directories(test_hotkeys PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    set_source_files_properties(test_hotkeys.cpp
+        ${CMAKE_SOURCE_DIR}/src/HotkeyManager.mm PROPERTIES
+        COMPILE_FLAGS "-x objective-c++")
+    target_link_libraries(test_hotkeys PRIVATE
+        Catch2::Catch2
+        ${wxWidgets_LIBRARIES}
+        "-framework Cocoa"
+        "-framework Carbon"
+    )
+    add_test(NAME test_hotkeys COMMAND test_hotkeys)
+endif()

@@ -69,6 +69,9 @@ public:
     // Persist a reordered/toggled submenu section back to the INI file and reload.
     void SaveSubmenuOrder(const wxString& section, const std::vector<MenuItem>& items);
 
+    // Global hotkeys: maps menu item name → key combo string (e.g. "Cmd+Shift+S").
+    std::map<wxString, wxString> GetHotkeys() const { return m_hotkeys; }
+
     // Updater state. Stored in a separate writable file so the user-edited
     // SprintToolBox.ini is not rewritten (which would lose comments/order).
     wxString GetSkippedVersion() const;
@@ -82,6 +85,7 @@ private:
     wxString FindConfigFile() const;
     void LoadMainMenu();
     void LoadSubmenu(const wxString& section);
+    void LoadHotkeys();
     
     wxString m_configPath;
     time_t   m_configModTime;   // last-seen modification time of the INI file
@@ -94,6 +98,7 @@ private:
     bool m_showJsonFormatter;
     std::vector<MenuItem> m_mainMenuItems;
     std::map<wxString, std::vector<MenuItem>> m_subMenus;
+    std::map<wxString, wxString> m_hotkeys;
 };
 
 #endif // CONFIG_H
