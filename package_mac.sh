@@ -130,6 +130,11 @@ for DYLIB in "$FRAMEWORKS"/*.dylib; do
     done < <(otool -L "$DYLIB" | tail -n +2)
 done
 
+# ── 4a. Remove non-Mach-O files from MacOS/ ──────────────────────────────────
+# codesign --deep fails if it finds files it cannot sign (e.g. stale .log files
+# left by a previous run of the app).
+find "$APP_BUNDLE/Contents/MacOS" -type f ! -name "$APP_NAME" -delete
+
 # ── 4. Verify bundle ──────────────────────────────────────────────────────────
 echo "==> Verifying bundle..."
 MISSING=0
