@@ -1047,6 +1047,8 @@ void SprintToolBoxApp::RegisterHotkeys() {
         wxLaunchDefaultBrowser(url);
     });
 
+    int registered = 0;
+    wxString failed;
     for (const auto& kv : hotkeys) {
         const wxString& name  = kv.first;
         const wxString& combo = kv.second;
@@ -1055,10 +1057,24 @@ void SprintToolBoxApp::RegisterHotkeys() {
             wxLogWarning("Hotkey target '%s' not found in menu items", name);
             continue;
         }
-        if (!m_hotkeyManager->Register(combo, it->second))
-            wxLogWarning("Failed to register hotkey %s for '%s' (combo invalid or already taken)", combo, name);
-        else
+        if (!m_hotkeyManager->Register(combo, it->second)) {
+            if (!failed.IsEmpty()) failed += ", ";
+            failed += combo + " (" + name + ")";
+        } else {
+            ++registered;
             wxLogMessage("Registered hotkey %s → %s", combo, name);
+        }
+    }
+
+    if (!failed.IsEmpty()) {
+        wxLogWarning("Failed to register hotkeys: %s", failed);
+#ifdef _WIN32
+        // Show a balloon so the problem is visible without digging in logs.
+        ShowBalloon("Hotkey conflict",
+                    "Could not register: " + failed +
+                    ".\nAnother app may own these combos — try different shortcuts in SprintToolBox.ini.",
+                    wxICON_WARNING);
+#endif
     }
 }
 #endif

@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <map>
 #include <wx/arrstr.h>
+#include <wx/log.h>
 
 static const wchar_t* kHotkeyWndClass = L"STB_HotkeyManager";
 
@@ -36,6 +37,9 @@ HotkeyManager::HotkeyManager(UrlCallback onTrigger)
     if (hwnd) {
         m_hwnd = hwnd;
         s_managers[hwnd] = this;
+    } else {
+        wxLogError("HotkeyManager: CreateWindowExW failed (error %lu) — hotkeys disabled.",
+                   ::GetLastError());
     }
 }
 
@@ -62,7 +66,16 @@ bool HotkeyManager::Register(const wxString& keyCombo, const wxString& url) {
                                 static_cast<int>(id),
                                 modifiers | MOD_NOREPEAT,
                                 keyCode);
-    if (!ok) return false;
+    if (!ok) {
+        DWORD err = ::GetLastError();
+        wxLogWarning("HotkeyManager: RegisterHotKey failed for '%s' (error %lu%s).",
+                     keyCombo,
+                     err,
+                     err == ERROR_HOTKEY_ALREADY_REGISTERED
+                         ? " — combo already owned by another app"
+                         : "");
+        return false;
+    }
 
     m_entries.push_back({ id, url, nullptr });
     return true;
