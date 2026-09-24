@@ -20,7 +20,7 @@ class UrlEncoderDialog;
 class JsonFormatterDialog;
 class CustomizeMenuDialog;
 class Config;
-#if defined(__WXOSX__) || defined(_WIN32)
+#if defined(__WXOSX__) || defined(_WIN32) || defined(__WXGTK__)
 class HotkeyManager;
 #endif
 
@@ -70,7 +70,7 @@ private:
     void OnToggleAutostart(wxCommandEvent& event);
     void OnCustomizeMenu(wxCommandEvent& event);
 
-#if defined(__WXOSX__) || defined(_WIN32)
+#if defined(__WXOSX__) || defined(_WIN32) || defined(__WXGTK__)
     void RegisterHotkeys();
 #endif
 
@@ -105,7 +105,7 @@ private:
     void* m_statusItem;         // NSStatusItem (owned by us, not by wxWidgets)
     void* m_statusItemHandler;  // StatusItemClickHandler target for the button
 #endif
-#if defined(__WXOSX__) || defined(_WIN32)
+#if defined(__WXOSX__) || defined(_WIN32) || defined(__WXGTK__)
     HotkeyManager* m_hotkeyManager;
 #endif
 #ifdef _WIN32
